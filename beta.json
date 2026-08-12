@@ -1,12 +1,12 @@
 {
   "channel": "beta",
   "version": "1.0.0-beta.1",
-  "displayVersion": "1.0.0 BETA",
+  "displayVersion": "1.0.0 BETA 1",
   "releaseDate": "2026-08-12",
   "required": false,
   "releaseNotes": [
     "Prima versione Beta di Clinica Digitale - Dossier Sanitario."
   ],
-  "downloadUrl": "",
-  "sha256": ""
+  "downloadUrl": "https://github.com/clinicadigitale/dossier-sanitario-updates/releases/download/v1.0.0-beta.1/ClinicaDigitale_DossierSanitario_1.0.0_BETA1.exe",
+  "sha256": "9e6da4eb468627aa27a87a81f217be45bc3df202109224edea43b5cb426fc975"
 }
