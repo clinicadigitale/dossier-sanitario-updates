@@ -21,7 +21,12 @@
             android:grantUriPermissions="true" />
 
         <activity
-            android:name=".MainActivity"
+            android:name=".DocumentEditorActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".R6MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
