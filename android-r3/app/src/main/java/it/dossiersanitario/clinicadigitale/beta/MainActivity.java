@@ -3,6 +3,7 @@ package it.dossiersanitario.clinicadigitale.beta;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -19,7 +20,6 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridLayout;
@@ -33,13 +33,18 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.Deque;
+import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final int CAMERA_PERMISSION = 5101;
     private static final int CAMERA_CAPTURE = 5102;
-    private static final String PREFS = "clinica_android_beta"; // Must remain identical to R3.
+    private static final String PREFS = "clinica_android_beta";
 
     private static final int GREEN = Color.rgb(23, 138, 114);
     private static final int GREEN_DARK = Color.rgb(19, 110, 93);
@@ -55,16 +60,18 @@ public final class MainActivity extends Activity {
     };
 
     private SharedPreferences prefs;
+    private ScrollView mainScroll;
     private LinearLayout content;
     private TextView viewTitle;
     private TextView viewSubtitle;
     private TextView profileName;
     private String currentSection = "Panoramica";
+    private final Deque<String> navigationHistory = new ArrayDeque<>();
 
     private EditText testField;
     private TextView savedValue;
     private TextView photoCount;
-    private ImageView preview;
+    private LinearLayout photoList;
     private File pendingCapture;
 
     @Override protected void onCreate(Bundle state) {
@@ -75,12 +82,28 @@ public final class MainActivity extends Activity {
         Window w = getWindow();
         w.setStatusBarColor(GREEN_DARK);
         w.setNavigationBarColor(Color.WHITE);
-        if (Build.VERSION.SDK_INT >= 23) {
-            w.getDecorView().setSystemUiVisibility(0);
-        }
+        if (Build.VERSION.SDK_INT >= 23) w.getDecorView().setSystemUiVisibility(0);
 
         setContentView(buildUi());
-        showSection("Panoramica");
+        String initial = state == null ? "Panoramica" : state.getString("current_section", "Panoramica");
+        renderSection(initial);
+    }
+
+    @Override protected void onSaveInstanceState(Bundle outState) {
+        outState.putString("current_section", currentSection);
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override public void onBackPressed() {
+        if (!navigationHistory.isEmpty()) {
+            renderSection(navigationHistory.pop());
+            return;
+        }
+        if (!"Panoramica".equals(currentSection)) {
+            renderSection("Panoramica");
+            return;
+        }
+        super.onBackPressed();
     }
 
     private View buildUi() {
@@ -95,44 +118,46 @@ public final class MainActivity extends Activity {
             return insets;
         });
 
+        mainScroll = new ScrollView(this);
+        mainScroll.setFillViewport(true);
+        mainScroll.setBackgroundColor(PAGE);
+
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setBackgroundColor(PAGE);
+
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(14), dp(10), dp(12), dp(10));
+        header.setPadding(dp(12), dp(8), dp(12), dp(8));
         header.setBackgroundColor(GREEN);
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.drawable.dossier_sanitario);
         icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        header.addView(icon, new LinearLayout.LayoutParams(dp(50), dp(50)));
+        header.addView(icon, new LinearLayout.LayoutParams(dp(58), dp(58)));
 
-        LinearLayout titleBox = new LinearLayout(this);
-        titleBox.setOrientation(LinearLayout.VERTICAL);
-        titleBox.setPadding(dp(10), 0, 0, 0);
-        TextView kicker = text("CLINICA DIGITALE", 12, Color.WHITE, true);
-        kicker.setLetterSpacing(0.08f);
-        titleBox.addView(kicker);
-        titleBox.addView(text("Dossier Sanitario", 21, Color.WHITE, true));
-        header.addView(titleBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView title = text("Dossier Sanitario", 23, Color.WHITE, true);
+        title.setPadding(dp(10), 0, 0, 0);
+        header.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         Button menu = compactButton("☰  Sezioni");
         menu.setTextColor(Color.WHITE);
         menu.setBackground(roundRect(Color.argb(38, 255, 255, 255), Color.argb(80, 255, 255, 255), 10));
         menu.setOnClickListener(v -> showSectionsDialog());
         header.addView(menu, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)));
-        root.addView(header);
+        page.addView(header);
 
         LinearLayout profileBar = new LinearLayout(this);
         profileBar.setOrientation(LinearLayout.HORIZONTAL);
         profileBar.setGravity(Gravity.CENTER_VERTICAL);
         profileBar.setPadding(dp(16), dp(9), dp(16), dp(9));
         profileBar.setBackgroundColor(Color.WHITE);
-        TextView profileLabel = text("Profilo attivo", 12, MUTED, false);
-        profileBar.addView(profileLabel);
+        profileBar.addView(text("Profilo attivo", 12, MUTED, false));
         profileName = text(profileDisplayName(), 14, TEXT, true);
         profileName.setGravity(Gravity.END);
         profileBar.addView(profileName, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        root.addView(profileBar);
+        page.addView(profileBar);
 
         LinearLayout topbar = new LinearLayout(this);
         topbar.setOrientation(LinearLayout.VERTICAL);
@@ -153,19 +178,19 @@ public final class MainActivity extends Activity {
         Button importFile = compactButton("Importa file");
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(0, dp(44), 1f);
         ip.setMargins(dp(8), 0, 0, 0);
-        importFile.setOnClickListener(v -> Toast.makeText(this, "Importazione file non ancora attiva nella R4 strutturale", Toast.LENGTH_SHORT).show());
+        importFile.setOnClickListener(v -> Toast.makeText(this, "Importazione file non ancora attiva nella R5 strutturale", Toast.LENGTH_SHORT).show());
         quick.addView(importFile, ip);
         topbar.addView(quick);
-        root.addView(topbar);
+        page.addView(topbar);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(16), dp(4), dp(16), dp(28));
         content.setBackgroundColor(PAGE);
-        scroll.addView(content, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        page.addView(content, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        mainScroll.addView(page, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(mainScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return root;
     }
 
@@ -175,19 +200,25 @@ public final class MainActivity extends Activity {
                 .setTitle("Sezioni del Dossier")
                 .setSingleChoiceItems(SECTIONS, checked, (dialog, which) -> {
                     dialog.dismiss();
-                    showSection(SECTIONS[which]);
+                    navigateTo(SECTIONS[which]);
                 })
                 .setNegativeButton("Chiudi", null)
                 .show();
     }
 
-    private void showSection(String section) {
+    private void navigateTo(String section) {
+        if (section == null || section.equals(currentSection)) return;
+        navigationHistory.push(currentSection);
+        renderSection(section);
+    }
+
+    private void renderSection(String section) {
         currentSection = section;
         content.removeAllViews();
         testField = null;
         savedValue = null;
         photoCount = null;
-        preview = null;
+        photoList = null;
 
         viewTitle.setText(section);
         viewSubtitle.setText(subtitleFor(section));
@@ -202,6 +233,7 @@ public final class MainActivity extends Activity {
             case "Aiuto": renderAiuto(); break;
             default: renderStructuralSection(section); break;
         }
+        if (mainScroll != null) mainScroll.post(() -> mainScroll.scrollTo(0, 0));
     }
 
     private String subtitleFor(String section) {
@@ -230,11 +262,10 @@ public final class MainActivity extends Activity {
 
         LinearLayout profileCard = card();
         profileCard.addView(sectionHeader("Dati del profilo"));
-        String name = profileDisplayName();
-        profileCard.addView(labelValue("Profilo", name));
+        profileCard.addView(labelValue("Profilo", profileDisplayName()));
         profileCard.addView(labelValue("Indirizzo", profileAddress()));
         Button edit = button("Apri dati profilo");
-        edit.setOnClickListener(v -> showSection("Dati profilo"));
+        edit.setOnClickListener(v -> navigateTo("Dati profilo"));
         profileCard.addView(edit, matchWrapTop(10));
         content.addView(profileCard, matchWrapBottom(14));
 
@@ -254,7 +285,7 @@ public final class MainActivity extends Activity {
         recent.addView(text(count == 0 ? "Nessun documento acquisito." : "Sono presenti " + count + " immagini private acquisite nel Dossier.", 14, MUTED, false));
         if (count > 0) {
             Button open = button("Apri documenti");
-            open.setOnClickListener(v -> showSection("Documenti"));
+            open.setOnClickListener(v -> navigateTo("Documenti"));
             recent.addView(open, matchWrapTop(10));
         }
         content.addView(recent, matchWrapBottom(14));
@@ -263,11 +294,11 @@ public final class MainActivity extends Activity {
     private void addReleaseNotice() {
         LinearLayout notice = card();
         notice.setBackground(roundRect(Color.rgb(235, 247, 243), Color.rgb(183, 222, 210), 14));
-        notice.addView(text("Android R4 TEST STRUTTURALE", 15, GREEN_DARK, true));
-        notice.addView(text("La navigazione e la struttura del Dossier sono ora visibili. Le funzioni cliniche complete verranno portate progressivamente senza alterare la linea Windows stabile.", 13, MUTED, false));
+        notice.addView(text("Android R5 TEST STRUTTURALE", 15, GREEN_DARK, true));
+        notice.addView(text("Questa release corregge la navigazione Indietro, fa scorrere intestazione e titolo insieme al contenuto e rende più leggibile l'archivio documenti.", 13, MUTED, false));
         String inherited = prefs.getString("test_value", "").trim();
         if (!inherited.isEmpty() || privatePhotoCount() > 0) {
-            notice.addView(text("Dati R3 rilevati: " + (inherited.isEmpty() ? "testo assente" : "testo presente") + ", foto private: " + privatePhotoCount() + ".", 13, GREEN_DARK, true));
+            notice.addView(text("Dati precedenti rilevati: " + (inherited.isEmpty() ? "testo assente" : "testo presente") + ", foto private: " + privatePhotoCount() + ".", 13, GREEN_DARK, true));
         }
         content.addView(notice, matchWrapBottom(14));
     }
@@ -332,14 +363,15 @@ public final class MainActivity extends Activity {
         photoCount = text("", 14, GREEN_DARK, true);
         photoCount.setPadding(0, dp(12), 0, dp(8));
         c.addView(photoCount);
-        preview = new ImageView(this);
-        preview.setAdjustViewBounds(true);
-        preview.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        c.addView(preview, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230)));
+
+        photoList = new LinearLayout(this);
+        photoList.setOrientation(LinearLayout.VERTICAL);
+        c.addView(photoList, matchWrap());
         content.addView(c, matchWrapBottom(14));
 
         LinearLayout legacy = card();
-        legacy.addView(sectionHeader("Controllo persistenza R3 → R4"));
+        legacy.addView(sectionHeader("Dato di prova conservato"));
+        legacy.addView(text("Questo campo serve ancora a verificare la continuità dei dati tra una release Android e la successiva.", 13, MUTED, false));
         testField = field("Dato di prova", prefs.getString("test_value", ""));
         legacy.addView(testField);
         Button save = button("Salva dato di prova");
@@ -356,10 +388,91 @@ public final class MainActivity extends Activity {
         refreshDocumentState();
     }
 
+    private void refreshDocumentState() {
+        if (savedValue != null) {
+            String value = prefs.getString("test_value", "");
+            savedValue.setText(value.isEmpty() ? "Nessun dato di prova salvato" : "Dato conservato: " + value);
+            if (testField != null && !testField.hasFocus()) testField.setText(value);
+        }
+
+        File[] photos = privatePhotos();
+        if (photos == null) photos = new File[0];
+        Arrays.sort(photos, Comparator.comparingLong(File::lastModified).reversed());
+
+        if (photoCount != null) photoCount.setText("Foto private presenti nel Dossier: " + photos.length);
+        if (photoList == null) return;
+        photoList.removeAllViews();
+
+        if (photos.length == 0) {
+            photoList.addView(text("Nessuna fotografia presente.", 13, MUTED, false));
+            return;
+        }
+
+        SimpleDateFormat fmt = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.ITALY);
+        for (int i = 0; i < photos.length; i++) {
+            File photo = photos[i];
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(8), 0, dp(8));
+            if (i > 0) row.setBackground(roundRect(Color.rgb(250, 252, 251), BORDER, 10));
+
+            ImageView thumb = new ImageView(this);
+            thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            Bitmap bitmap = decodeScaled(photo, 360, 360);
+            if (bitmap != null) thumb.setImageBitmap(bitmap);
+            row.addView(thumb, new LinearLayout.LayoutParams(dp(92), dp(92)));
+
+            LinearLayout meta = new LinearLayout(this);
+            meta.setOrientation(LinearLayout.VERTICAL);
+            meta.setPadding(dp(12), 0, 0, 0);
+            meta.addView(text("Documento fotografico " + (i + 1), 14, TEXT, true));
+            meta.addView(text(fmt.format(new Date(photo.lastModified())), 12, MUTED, false));
+            TextView hint = text("Tocca per aprire", 12, GREEN_DARK, true);
+            hint.setPadding(0, dp(7), 0, 0);
+            meta.addView(hint);
+            row.addView(meta, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            row.setOnClickListener(v -> showPhoto(photo));
+            thumb.setOnClickListener(v -> showPhoto(photo));
+            photoList.addView(row, matchWrapBottom(8));
+        }
+    }
+
+    private void showPhoto(File photo) {
+        Bitmap bitmap = decodeScaled(photo, 2400, 2400);
+        if (bitmap == null) {
+            Toast.makeText(this, "Immagine non leggibile", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Dialog dialog = new Dialog(this, android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.BLACK);
+
+        Button close = new Button(this);
+        close.setText("Chiudi");
+        close.setAllCaps(false);
+        close.setTextColor(Color.WHITE);
+        close.setBackgroundColor(Color.rgb(35, 35, 35));
+        close.setOnClickListener(v -> dialog.dismiss());
+        root.addView(close, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+
+        ImageView full = new ImageView(this);
+        full.setImageBitmap(bitmap);
+        full.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        full.setAdjustViewBounds(true);
+        root.addView(full, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        dialog.setContentView(root);
+        dialog.show();
+    }
+
     private void renderMonitoraggio() {
         LinearLayout intro = card();
         intro.addView(sectionHeader("Monitoraggio personale"));
-        intro.addView(text("Seleziona il percorso da aprire. In questa R4 la struttura è navigabile, mentre grafici e calcoli clinici completi non sono ancora attivi.", 13, MUTED, false));
+        intro.addView(text("Seleziona il percorso da aprire. In questa R5 la struttura è navigabile, mentre grafici e calcoli clinici completi non sono ancora attivi.", 13, MUTED, false));
         content.addView(intro, matchWrapBottom(14));
 
         String[] items = {"Percorso peso", "Glicemia", "Pressione", "Saturazione", "Misurazioni"};
@@ -377,15 +490,15 @@ public final class MainActivity extends Activity {
     private void renderBackup() {
         LinearLayout c = card();
         c.addView(sectionHeader("Continuità dei dati"));
-        c.addView(text("Installando la R4 sopra la R3, con lo stesso pacchetto e la stessa firma beta, Android conserva automaticamente i dati privati già presenti.", 14, TEXT, false));
-        c.addView(text("Sul dispositivo Xiaomi testato la disinstallazione completa non offre invece l'opzione di mantenimento dati. Per questo la R4 non va disinstallata prima di aver definito e testato il meccanismo protetto di conservazione esterna o sincronizzazione.", 14, MUTED, false));
+        c.addView(text("Gli aggiornamenti R3 → R4 → R5 mantengono lo stesso pacchetto e la stessa firma beta: installando la nuova APK sopra la precedente, Android conserva i dati privati.", 14, TEXT, false));
+        c.addView(text("Sul dispositivo Xiaomi testato la disinstallazione completa continua invece a dichiarare che tutti i dati verranno eliminati. Questa parte non è ancora considerata risolta: non disinstallare la linea beta se vuoi conservare i dati di prova.", 14, MUTED, false));
         content.addView(c, matchWrapBottom(14));
     }
 
     private void renderAiuto() {
         LinearLayout c = card();
         c.addView(sectionHeader("Aiuto"));
-        c.addView(text("R4 Android: test della struttura mobile, persistenza tra aggiornamenti, icona ufficiale, area sicura superiore e archivio fotografico privato.", 14, MUTED, false));
+        c.addView(text("R5 Android: test della navigazione interna, scorrimento completo dell'intestazione, continuità dei dati tra aggiornamenti e archivio fotografico privato apribile.", 14, MUTED, false));
         content.addView(c, matchWrapBottom(14));
     }
 
@@ -394,7 +507,7 @@ public final class MainActivity extends Activity {
         c.addView(sectionHeader("Logout"));
         c.addView(text("L'autenticazione multiutente e l'associazione al Dossier familiare/cloud non sono ancora attive in questa release strutturale.", 14, MUTED, false));
         Button back = button("Torna alla Panoramica");
-        back.setOnClickListener(v -> showSection("Panoramica"));
+        back.setOnClickListener(v -> navigateTo("Panoramica"));
         c.addView(back, matchWrapTop(10));
         content.addView(c, matchWrapBottom(14));
     }
@@ -403,7 +516,7 @@ public final class MainActivity extends Activity {
         LinearLayout c = card();
         c.addView(sectionHeader(section));
         c.addView(text(descriptionFor(section), 14, MUTED, false));
-        TextView state = text("R4: struttura presente · funzione clinica completa non ancora attiva", 13, GREEN_DARK, true);
+        TextView state = text("R5: struttura presente · funzione clinica completa non ancora attiva", 13, GREEN_DARK, true);
         state.setPadding(0, dp(12), 0, 0);
         c.addView(state);
         content.addView(c, matchWrapBottom(14));
@@ -496,27 +609,6 @@ public final class MainActivity extends Activity {
             temp.delete();
             cleanCameraTemp();
             Toast.makeText(this, "Salvataggio della foto non riuscito", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void refreshDocumentState() {
-        if (savedValue != null) {
-            String value = prefs.getString("test_value", "");
-            savedValue.setText(value.isEmpty() ? "Nessun dato di prova salvato" : "Dato conservato: " + value);
-            if (testField != null && !testField.hasFocus()) testField.setText(value);
-        }
-        if (photoCount != null) {
-            File[] photos = privatePhotos();
-            int count = photos == null ? 0 : photos.length;
-            photoCount.setText("Foto private presenti nel Dossier: " + count);
-            if (preview != null) {
-                preview.setImageDrawable(null);
-                if (photos != null && photos.length > 0) {
-                    Arrays.sort(photos, Comparator.comparingLong(File::lastModified).reversed());
-                    Bitmap bitmap = decodeScaled(photos[0], 1200, 800);
-                    if (bitmap != null) preview.setImageBitmap(bitmap);
-                }
-            }
         }
     }
 
@@ -620,8 +712,7 @@ public final class MainActivity extends Activity {
         e.setTextSize(15);
         e.setSingleLine(true);
         e.setPadding(dp(10), dp(8), dp(10), dp(8));
-        LinearLayout.LayoutParams p = matchWrapTop(6);
-        e.setLayoutParams(p);
+        e.setLayoutParams(matchWrapTop(6));
         return e;
     }
 
@@ -669,14 +760,18 @@ public final class MainActivity extends Activity {
         return g;
     }
 
+    private LinearLayout.LayoutParams matchWrap() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
     private LinearLayout.LayoutParams matchWrapBottom(int bottomDp) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams p = matchWrap();
         p.setMargins(0, 0, 0, dp(bottomDp));
         return p;
     }
 
     private LinearLayout.LayoutParams matchWrapTop(int topDp) {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams p = matchWrap();
         p.setMargins(0, dp(topDp), 0, 0);
         return p;
     }
