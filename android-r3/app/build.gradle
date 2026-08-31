@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'it.dossiersanitario.clinicadigitale.beta'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'it.dossiersanitario.clinicadigitale.beta'
+        minSdk 29
+        targetSdk 35
+        versionCode 3
+        versionName '1.0.0-android-r3-test'
+    }
+
+    signingConfigs {
+        beta {
+            storeFile file(System.getenv('CLINICA_KEYSTORE') ?: '../beta-test.jks')
+            storePassword System.getenv('CLINICA_STORE_PASSWORD') ?: 'ClinicaBeta2026!'
+            keyAlias System.getenv('CLINICA_KEY_ALIAS') ?: 'clinica_beta'
+            keyPassword System.getenv('CLINICA_KEY_PASSWORD') ?: 'ClinicaBeta2026!'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.beta
+        }
+    }
+}
