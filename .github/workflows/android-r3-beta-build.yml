@@ -16,6 +16,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Align visible R7 labels
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java')
+          s = p.read_text(encoding='utf-8')
+          replacements = {
+              'Android R6 TEST STRUTTURALE': 'Android R7 TEST STRUTTURALE',
+              'Importazione file non ancora attiva nella R6': 'Importazione file non ancora attiva nella R7',
+              'R6 Android:': 'R7 Android:',
+              'R6: struttura presente': 'R7: struttura presente',
+              'R3 → R4 → R5 → R6': 'R3 → R4 → R5 → R6 → R7'
+          }
+          for old, new in replacements.items():
+              s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+          PY
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
