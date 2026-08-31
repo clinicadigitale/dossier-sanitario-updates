@@ -8,7 +8,8 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:hasFragileUserData="true"
-        android:icon="@drawable/ic_clinica"
+        android:icon="@drawable/dossier_sanitario"
+        android:roundIcon="@drawable/dossier_sanitario"
         android:label="Clinica Digitale"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
