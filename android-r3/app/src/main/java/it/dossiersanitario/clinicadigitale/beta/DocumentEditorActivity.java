@@ -18,8 +18,8 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -33,8 +33,10 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
+import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
+import org.opencv.imgproc.CLAHE;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.File;
@@ -51,6 +53,7 @@ public final class DocumentEditorActivity extends Activity {
 
     private static final int GREEN = Color.rgb(23, 138, 114);
     private static final int GREEN_DARK = Color.rgb(19, 110, 93);
+    private static final int PANEL = Color.rgb(32, 36, 35);
 
     private File sourceFile;
     private String replacePath;
@@ -61,6 +64,7 @@ public final class DocumentEditorActivity extends Activity {
     private TextView status;
     private boolean openCvReady;
     private boolean completed;
+    private LinearLayout bottomBar;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -82,7 +86,7 @@ public final class DocumentEditorActivity extends Activity {
         }
 
         openCvReady = OpenCVLoader.initLocal();
-        originalBitmap = loadOrientedBitmap(sourceFile, 3200);
+        originalBitmap = loadOrientedBitmap(sourceFile, 3400);
         if (originalBitmap == null) {
             failAndFinish("Immagine non leggibile");
             return;
@@ -90,8 +94,15 @@ public final class DocumentEditorActivity extends Activity {
         currentBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true);
         setContentView(buildUi());
         documentView.setBitmap(currentBitmap);
-        if (openCvReady) autoDetectEdges(false);
-        else status.setText("OpenCV non inizializzato: rotazione e ritaglio manuale restano disponibili.");
+
+        if (openCvReady) {
+            boolean found = autoDetectEdges(false);
+            status.setText(found
+                    ? "Documento rilevato automaticamente. Se i bordi sono corretti, tocca Raddrizza oppure Salva."
+                    : "Non ho rilevato con sicurezza tutti i bordi. Puoi spostare i quattro punti verdi oppure toccare Auto.");
+        } else {
+            status.setText("Rilevamento automatico non disponibile. Rotazione e regolazione manuale restano attive.");
+        }
     }
 
     private View buildUi() {
@@ -101,12 +112,11 @@ public final class DocumentEditorActivity extends Activity {
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(14), dp(10), dp(14), dp(9));
+        header.setPadding(dp(14), dp(9), dp(14), dp(8));
         header.setBackgroundColor(GREEN_DARK);
-        TextView title = label("Modifica documento", 20, Color.WHITE, true);
-        TextView help = label("Trascina i quattro punti verdi sugli angoli del foglio. Puoi correggere orientamento, ritaglio, prospettiva e distorsione prima di salvare.", 12, Color.WHITE, false);
-        help.setPadding(0, dp(4), 0, 0);
-        header.addView(title);
+        header.addView(label("Modifica documento", 20, Color.WHITE, true));
+        TextView help = label("Il Dossier prova a trovare il foglio da solo. Se serve, trascina i quattro punti verdi sugli angoli.", 12, Color.WHITE, false);
+        help.setPadding(0, dp(3), 0, 0);
         header.addView(help);
         root.addView(header);
 
@@ -114,58 +124,77 @@ public final class DocumentEditorActivity extends Activity {
         root.addView(documentView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         status = label("", 12, Color.rgb(220, 228, 225), false);
-        status.setPadding(dp(12), dp(7), dp(12), dp(5));
+        status.setPadding(dp(12), dp(6), dp(12), dp(6));
         root.addView(status);
 
-        HorizontalScrollView toolsScroll = new HorizontalScrollView(this);
-        toolsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
-        tools.setPadding(dp(8), dp(5), dp(8), dp(7));
-        tools.setBackgroundColor(Color.rgb(32, 36, 35));
+        tools.setPadding(dp(6), dp(5), dp(6), dp(5));
+        tools.setBackgroundColor(PANEL);
+        tools.addView(primaryTool("Auto", v -> {
+            boolean found = autoDetectEdges(true);
+            if (found) status.setText("Bordi rilevati. Controllali e tocca Raddrizza se vuoi correggere la prospettiva.");
+        }), weightedTool());
+        tools.addView(primaryTool("Ruota", v -> rotate(90)), weightedTool());
+        tools.addView(primaryTool("Raddrizza", v -> applyPerspective()), weightedTool());
+        tools.addView(primaryTool("Migliora", v -> enhanceDocument()), weightedTool());
+        root.addView(tools, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
 
-        tools.addView(toolButton("Auto bordi", v -> autoDetectEdges(true)));
-        tools.addView(toolButton("Ruota ↺", v -> rotate(-90)));
-        tools.addView(toolButton("Ruota ↻", v -> rotate(90)));
-        tools.addView(toolButton("Ritaglia", v -> cropToCorners()));
-        tools.addView(toolButton("Prospettiva", v -> applyPerspective()));
-        tools.addView(toolButton("Barilotto", v -> correctDistortion(-0.10)));
-        tools.addView(toolButton("Cuscinetto", v -> correctDistortion(0.10)));
-        tools.addView(toolButton("Migliora", v -> enhanceDocument()));
-        tools.addView(toolButton("Ripristina", v -> restoreOriginal()));
-        toolsScroll.addView(tools);
-        root.addView(toolsScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)));
+        Button more = secondaryButton("Altre correzioni");
+        more.setOnClickListener(v -> showMoreCorrections());
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+        mp.setMargins(dp(10), dp(4), dp(10), dp(4));
+        root.addView(more, mp);
 
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.HORIZONTAL);
-        bottom.setPadding(dp(10), dp(8), dp(10), dp(10));
-        bottom.setBackgroundColor(Color.rgb(245, 247, 246));
+        bottomBar = new LinearLayout(this);
+        bottomBar.setOrientation(LinearLayout.HORIZONTAL);
+        bottomBar.setPadding(dp(10), dp(8), dp(10), dp(10));
+        bottomBar.setBackgroundColor(Color.rgb(245, 247, 246));
 
         Button cancel = actionButton("Annulla", false);
         cancel.setOnClickListener(v -> confirmCancel());
-        bottom.addView(cancel, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        bottomBar.addView(cancel, new LinearLayout.LayoutParams(0, dp(50), 1f));
 
         Button save = actionButton("Salva nel Dossier", true);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(48), 1.45f);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(50), 1.5f);
         sp.setMargins(dp(8), 0, 0, 0);
         save.setOnClickListener(v -> saveDocument());
-        bottom.addView(save, sp);
-        root.addView(bottom);
+        bottomBar.addView(save, sp);
+        root.addView(bottomBar);
+
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int bottom = insets.getSystemWindowInsetBottom();
+            bottomBar.setPadding(dp(10), dp(8), dp(10), dp(10) + bottom);
+            return insets;
+        });
         return root;
     }
 
-    private Button toolButton(String text, View.OnClickListener listener) {
+    private LinearLayout.LayoutParams weightedTool() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        p.setMargins(dp(3), 0, dp(3), 0);
+        return p;
+    }
+
+    private Button primaryTool(String text, View.OnClickListener listener) {
         Button b = new Button(this);
         b.setText(text);
         b.setAllCaps(false);
         b.setTextSize(12);
         b.setTextColor(Color.WHITE);
         b.setBackgroundColor(Color.rgb(48, 54, 52));
-        b.setPadding(dp(10), 0, dp(10), 0);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44));
-        p.setMargins(dp(4), 0, dp(4), 0);
-        b.setLayoutParams(p);
+        b.setPadding(dp(4), 0, dp(4), 0);
         b.setOnClickListener(listener);
+        return b;
+    }
+
+    private Button secondaryButton(String text) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setAllCaps(false);
+        b.setTextSize(13);
+        b.setTextColor(Color.WHITE);
+        b.setBackgroundColor(Color.rgb(48, 54, 52));
         return b;
     }
 
@@ -177,6 +206,31 @@ public final class DocumentEditorActivity extends Activity {
         b.setTextColor(primary ? Color.WHITE : Color.rgb(40, 52, 48));
         b.setBackgroundColor(primary ? GREEN : Color.rgb(224, 232, 229));
         return b;
+    }
+
+    private void showMoreCorrections() {
+        String[] items = {
+                "Ruota a sinistra",
+                "Ritaglio rettangolare",
+                "Correggi barilotto",
+                "Correggi cuscinetto",
+                "Bianco e nero documento",
+                "Ripristina originale"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Altre correzioni")
+                .setItems(items, (d, which) -> {
+                    switch (which) {
+                        case 0: rotate(-90); break;
+                        case 1: cropToCorners(); break;
+                        case 2: correctDistortion(-0.08); break;
+                        case 3: correctDistortion(0.08); break;
+                        case 4: blackWhiteDocument(); break;
+                        case 5: restoreOriginal(); break;
+                    }
+                })
+                .setNegativeButton("Chiudi", null)
+                .show();
     }
 
     private void rotate(int degrees) {
@@ -195,64 +249,127 @@ public final class DocumentEditorActivity extends Activity {
         status.setText("Immagine originale ripristinata.");
     }
 
-    private void autoDetectEdges(boolean notify) {
+    private boolean autoDetectEdges(boolean notify) {
         if (!openCvReady) {
             if (notify) Toast.makeText(this, "Rilevamento automatico non disponibile", Toast.LENGTH_SHORT).show();
-            return;
+            return false;
         }
 
         Mat src = new Mat();
+        Mat work = new Mat();
         Mat gray = new Mat();
-        Mat blurred = new Mat();
-        Mat edges = new Mat();
+        Mat blur = new Mat();
+        Mat canny = new Mat();
+        Mat adaptive = new Mat();
+        Mat combined = new Mat();
+        Mat kernel = new Mat();
         Mat hierarchy = new Mat();
         try {
             Utils.bitmapToMat(currentBitmap, src);
-            Imgproc.cvtColor(src, gray, Imgproc.COLOR_RGBA2GRAY);
-            Imgproc.GaussianBlur(gray, blurred, new Size(5, 5), 0);
-            Imgproc.Canny(blurred, edges, 60, 180);
+            double scale = 1.0;
+            int maxSide = Math.max(src.cols(), src.rows());
+            if (maxSide > 1400) scale = 1400.0 / maxSide;
+            if (scale < 1.0) Imgproc.resize(src, work, new Size(), scale, scale, Imgproc.INTER_AREA);
+            else src.copyTo(work);
+
+            Imgproc.cvtColor(work, gray, Imgproc.COLOR_RGBA2GRAY);
+            Imgproc.GaussianBlur(gray, blur, new Size(5, 5), 0);
+            Imgproc.Canny(blur, canny, 35, 120);
+            Imgproc.adaptiveThreshold(blur, adaptive, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    Imgproc.THRESH_BINARY_INV, 31, 11);
+            kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+            Imgproc.morphologyEx(canny, canny, Imgproc.MORPH_CLOSE, kernel);
+            Imgproc.morphologyEx(adaptive, adaptive, Imgproc.MORPH_CLOSE, kernel);
+            Core.bitwise_or(canny, adaptive, combined);
 
             List<MatOfPoint> contours = new ArrayList<>();
-            Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
-            double bestArea = 0;
+            Imgproc.findContours(combined, contours, hierarchy, Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
+            double imageArea = (double) work.cols() * work.rows();
+            double bestScore = -1;
             Point[] best = null;
-            double imageArea = (double) currentBitmap.getWidth() * currentBitmap.getHeight();
+            MatOfPoint largestContour = null;
+            double largestArea = 0;
 
             for (MatOfPoint contour : contours) {
-                double area = Math.abs(Imgproc.contourArea(contour));
-                if (area < imageArea * 0.12 || area <= bestArea) continue;
+                double contourArea = Math.abs(Imgproc.contourArea(contour));
+                if (contourArea > largestArea) {
+                    largestArea = contourArea;
+                    largestContour = contour;
+                }
+                if (contourArea < imageArea * 0.055 || contourArea > imageArea * 0.995) continue;
+
                 MatOfPoint2f curve = new MatOfPoint2f(contour.toArray());
                 double perimeter = Imgproc.arcLength(curve, true);
-                MatOfPoint2f approx = new MatOfPoint2f();
-                Imgproc.approxPolyDP(curve, approx, perimeter * 0.02, true);
-                Point[] pts = approx.toArray();
-                if (pts.length == 4) {
-                    MatOfPoint convex = new MatOfPoint(pts);
-                    if (Imgproc.isContourConvex(convex)) {
-                        bestArea = area;
-                        best = pts;
+                double[] eps = {0.012, 0.018, 0.025, 0.035, 0.05};
+                for (double e : eps) {
+                    MatOfPoint2f approx = new MatOfPoint2f();
+                    Imgproc.approxPolyDP(curve, approx, perimeter * e, true);
+                    Point[] pts = approx.toArray();
+                    if (pts.length == 4) {
+                        MatOfPoint quad = new MatOfPoint(pts);
+                        if (Imgproc.isContourConvex(quad)) {
+                            double area = Math.abs(Imgproc.contourArea(quad));
+                            PointF[] ordered = orderCorners(pts);
+                            double anglePenalty = maxRightAngleCosine(ordered);
+                            double score = (area / imageArea) * (1.0 - Math.min(0.85, anglePenalty));
+                            if (score > bestScore) {
+                                bestScore = score;
+                                best = pts;
+                            }
+                        }
+                        quad.release();
                     }
-                    convex.release();
+                    approx.release();
                 }
                 curve.release();
-                approx.release();
+            }
+
+            if (best == null && largestContour != null && largestArea > imageArea * 0.08) {
+                MatOfPoint2f lp = new MatOfPoint2f(largestContour.toArray());
+                RotatedRect rr = Imgproc.minAreaRect(lp);
+                Point[] rect = new Point[4];
+                rr.points(rect);
+                best = rect;
+                lp.release();
             }
 
             if (best != null) {
                 PointF[] ordered = orderCorners(best);
+                float inv = (float) (1.0 / scale);
+                for (PointF p : ordered) {
+                    p.x *= inv;
+                    p.y *= inv;
+                }
                 documentView.setCorners(ordered);
-                status.setText("Bordi rilevati. Trascina i punti se vuoi correggerli manualmente.");
-            } else {
-                documentView.resetCorners();
-                status.setText("Bordi non rilevati con sufficiente sicurezza: regola manualmente i quattro punti.");
-                if (notify) Toast.makeText(this, "Regola manualmente i quattro angoli", Toast.LENGTH_SHORT).show();
+                if (notify) Toast.makeText(this, "Bordi del documento rilevati", Toast.LENGTH_SHORT).show();
+                return true;
             }
+
+            documentView.resetCorners();
+            if (notify) Toast.makeText(this, "Bordi non rilevati: sposta i quattro punti verdi", Toast.LENGTH_LONG).show();
+            return false;
         } catch (Exception e) {
             documentView.resetCorners();
-            status.setText("Rilevamento automatico non riuscito: usa i punti manuali.");
+            if (notify) Toast.makeText(this, "Rilevamento automatico non riuscito", Toast.LENGTH_SHORT).show();
+            return false;
         } finally {
-            src.release(); gray.release(); blurred.release(); edges.release(); hierarchy.release();
+            src.release(); work.release(); gray.release(); blur.release(); canny.release();
+            adaptive.release(); combined.release(); kernel.release(); hierarchy.release();
         }
+    }
+
+    private static double maxRightAngleCosine(PointF[] p) {
+        double max = 0;
+        for (int i = 0; i < 4; i++) {
+            PointF prev = p[(i + 3) % 4];
+            PointF cur = p[i];
+            PointF next = p[(i + 1) % 4];
+            double ax = prev.x - cur.x, ay = prev.y - cur.y;
+            double bx = next.x - cur.x, by = next.y - cur.y;
+            double den = Math.sqrt((ax * ax + ay * ay) * (bx * bx + by * by));
+            if (den > 0) max = Math.max(max, Math.abs((ax * bx + ay * by) / den));
+        }
+        return max;
     }
 
     private void cropToCorners() {
@@ -282,8 +399,8 @@ public final class DocumentEditorActivity extends Activity {
         double widthB = distance(c[1], c[0]);
         double heightA = distance(c[1], c[2]);
         double heightB = distance(c[0], c[3]);
-        int outW = clamp((int) Math.round(Math.max(widthA, widthB)), 160, 3600);
-        int outH = clamp((int) Math.round(Math.max(heightA, heightB)), 160, 3600);
+        int outW = clamp((int) Math.round(Math.max(widthA, widthB)), 160, 3800);
+        int outH = clamp((int) Math.round(Math.max(heightA, heightB)), 160, 3800);
 
         Mat src = new Mat();
         Mat dst = new Mat();
@@ -297,11 +414,12 @@ public final class DocumentEditorActivity extends Activity {
         try {
             Utils.bitmapToMat(currentBitmap, src);
             transform = Imgproc.getPerspectiveTransform(srcPts, dstPts);
-            Imgproc.warpPerspective(src, dst, transform, new Size(outW, outH), Imgproc.INTER_CUBIC, Core.BORDER_REPLICATE, new Scalar(255, 255, 255, 255));
+            Imgproc.warpPerspective(src, dst, transform, new Size(outW, outH), Imgproc.INTER_CUBIC,
+                    Core.BORDER_REPLICATE, new Scalar(255, 255, 255, 255));
             Bitmap result = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888);
             Utils.matToBitmap(dst, result);
             replaceCurrent(result, true);
-            status.setText("Prospettiva corretta e documento raddrizzato.");
+            status.setText("Documento raddrizzato. Puoi salvarlo oppure usare Migliora.");
         } catch (Exception e) {
             Toast.makeText(this, "Correzione prospettica non riuscita", Toast.LENGTH_SHORT).show();
         } finally {
@@ -331,7 +449,7 @@ public final class DocumentEditorActivity extends Activity {
             Bitmap result = Bitmap.createBitmap(dst.cols(), dst.rows(), Bitmap.Config.ARGB_8888);
             Utils.matToBitmap(dst, result);
             replaceCurrent(result, true);
-            status.setText(k1 < 0 ? "Correzione tipo barilotto applicata." : "Correzione tipo cuscinetto applicata.");
+            status.setText(k1 < 0 ? "Correzione barilotto applicata." : "Correzione cuscinetto applicata.");
         } catch (Exception e) {
             Toast.makeText(this, "Correzione distorsione non riuscita", Toast.LENGTH_SHORT).show();
         } finally {
@@ -346,24 +464,68 @@ public final class DocumentEditorActivity extends Activity {
         }
         Mat src = new Mat();
         Mat rgb = new Mat();
+        Mat lab = new Mat();
+        Mat merged = new Mat();
+        Mat enhancedRgb = new Mat();
         Mat blur = new Mat();
         Mat sharp = new Mat();
         Mat out = new Mat();
+        List<Mat> channels = new ArrayList<>();
+        CLAHE clahe = null;
         try {
             Utils.bitmapToMat(currentBitmap, src);
             Imgproc.cvtColor(src, rgb, Imgproc.COLOR_RGBA2RGB);
-            Imgproc.GaussianBlur(rgb, blur, new Size(0, 0), 2.2);
-            Core.addWeighted(rgb, 1.32, blur, -0.32, 0, sharp);
-            sharp.convertTo(sharp, -1, 1.08, -5);
+            Imgproc.cvtColor(rgb, lab, Imgproc.COLOR_RGB2Lab);
+            Core.split(lab, channels);
+            clahe = Imgproc.createCLAHE(2.8, new Size(8, 8));
+            Mat light = new Mat();
+            clahe.apply(channels.get(0), light);
+            channels.get(0).release();
+            channels.set(0, light);
+            Core.merge(channels, merged);
+            Imgproc.cvtColor(merged, enhancedRgb, Imgproc.COLOR_Lab2RGB);
+            Imgproc.GaussianBlur(enhancedRgb, blur, new Size(0, 0), 1.6);
+            Core.addWeighted(enhancedRgb, 1.55, blur, -0.55, 0, sharp);
+            sharp.convertTo(sharp, -1, 1.06, 3);
             Imgproc.cvtColor(sharp, out, Imgproc.COLOR_RGB2RGBA);
             Bitmap result = Bitmap.createBitmap(out.cols(), out.rows(), Bitmap.Config.ARGB_8888);
             Utils.matToBitmap(out, result);
             replaceCurrent(result, false);
-            status.setText("Contrasto e nitidezza migliorati.");
+            status.setText("Testo e contrasto migliorati in modo più deciso.");
         } catch (Exception e) {
             Toast.makeText(this, "Miglioramento non riuscito", Toast.LENGTH_SHORT).show();
         } finally {
-            src.release(); rgb.release(); blur.release(); sharp.release(); out.release();
+            for (Mat m : channels) if (m != null) m.release();
+            if (clahe != null) clahe.clear();
+            src.release(); rgb.release(); lab.release(); merged.release(); enhancedRgb.release();
+            blur.release(); sharp.release(); out.release();
+        }
+    }
+
+    private void blackWhiteDocument() {
+        if (!openCvReady) {
+            Toast.makeText(this, "Bianco e nero non disponibile", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Mat src = new Mat();
+        Mat gray = new Mat();
+        Mat outGray = new Mat();
+        Mat out = new Mat();
+        try {
+            Utils.bitmapToMat(currentBitmap, src);
+            Imgproc.cvtColor(src, gray, Imgproc.COLOR_RGBA2GRAY);
+            Imgproc.GaussianBlur(gray, gray, new Size(3, 3), 0);
+            Imgproc.adaptiveThreshold(gray, outGray, 255, Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    Imgproc.THRESH_BINARY, 35, 12);
+            Imgproc.cvtColor(outGray, out, Imgproc.COLOR_GRAY2RGBA);
+            Bitmap result = Bitmap.createBitmap(out.cols(), out.rows(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(out, result);
+            replaceCurrent(result, false);
+            status.setText("Modalità bianco e nero documento applicata.");
+        } catch (Exception e) {
+            Toast.makeText(this, "Conversione non riuscita", Toast.LENGTH_SHORT).show();
+        } finally {
+            src.release(); gray.release(); outGray.release(); out.release();
         }
     }
 
@@ -393,7 +555,7 @@ public final class DocumentEditorActivity extends Activity {
 
         File tmp = new File(target.getParentFile(), target.getName() + ".editing");
         try (FileOutputStream out = new FileOutputStream(tmp)) {
-            if (!currentBitmap.compress(Bitmap.CompressFormat.JPEG, 94, out)) throw new IOException("compression failed");
+            if (!currentBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)) throw new IOException("compression failed");
             out.getFD().sync();
         } catch (IOException e) {
             tmp.delete();
@@ -535,7 +697,6 @@ public final class DocumentEditorActivity extends Activity {
     private final class DocumentView extends View {
         private final Paint border = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint handle = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint shade = new Paint(Paint.ANTI_ALIAS_FLAG);
         private Bitmap bitmap;
         private final PointF[] corners = new PointF[]{new PointF(), new PointF(), new PointF(), new PointF()};
         private final RectF imageRect = new RectF();
@@ -549,7 +710,6 @@ public final class DocumentEditorActivity extends Activity {
             border.setColor(Color.rgb(65, 225, 167));
             handle.setStyle(Paint.Style.FILL);
             handle.setColor(Color.rgb(65, 225, 167));
-            shade.setColor(Color.argb(90, 0, 0, 0));
         }
 
         void setBitmap(Bitmap bitmap) {
@@ -564,8 +724,8 @@ public final class DocumentEditorActivity extends Activity {
 
         void resetCorners() {
             if (bitmap == null) return;
-            float ix = bitmap.getWidth() * 0.04f;
-            float iy = bitmap.getHeight() * 0.04f;
+            float ix = bitmap.getWidth() * 0.035f;
+            float iy = bitmap.getHeight() * 0.035f;
             corners[0].set(ix, iy);
             corners[1].set(bitmap.getWidth() - ix, iy);
             corners[2].set(bitmap.getWidth() - ix, bitmap.getHeight() - iy);
@@ -607,8 +767,8 @@ public final class DocumentEditorActivity extends Activity {
             canvas.drawPath(path, border);
             for (PointF corner : corners) {
                 PointF p = toView(corner);
-                canvas.drawCircle(p.x, p.y, dp(10), handle);
-                canvas.drawCircle(p.x, p.y, dp(18), border);
+                canvas.drawCircle(p.x, p.y, dp(13), handle);
+                canvas.drawCircle(p.x, p.y, dp(23), border);
             }
         }
 
@@ -636,7 +796,7 @@ public final class DocumentEditorActivity extends Activity {
 
         private int nearestCorner(float x, float y) {
             int best = -1;
-            float bestDistance = dp(46);
+            float bestDistance = dp(64);
             for (int i = 0; i < 4; i++) {
                 PointF p = toView(corners[i]);
                 float dx = x - p.x, dy = y - p.y;
