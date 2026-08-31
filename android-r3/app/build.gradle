@@ -10,8 +10,8 @@ android {
         applicationId 'it.dossiersanitario.clinicadigitale.beta'
         minSdk 29
         targetSdk 35
-        versionCode 3
-        versionName '1.0.0-android-r3-test'
+        versionCode 4
+        versionName '1.0.0-android-r4-test'
     }
 
     signingConfigs {
