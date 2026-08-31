@@ -1,9 +1,9 @@
-name: Android R6 Beta Build
+name: Android R7 Beta Build
 
 on:
   push:
     branches:
-      - android-r6-build-0831
+      - android-r7-build-0831
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
       - name: Restore official Dossier icon
         run: |
           mkdir -p android-r3/app/src/main/res/drawable-nodpi
-          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario.webp
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
 
       - name: Build signed release APK
         env:
@@ -58,14 +58,14 @@ jobs:
           APK=android-r3/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 10 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 8 | tee -a android-r3/apk-verification.txt
           echo "SHA256=$(sha256sum "$APK" | awk '{print $1}')" | tee -a android-r3/apk-verification.txt
           echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R6_TEST_APK
+          name: ClinicaDigitale_Android_R7_TEST_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
