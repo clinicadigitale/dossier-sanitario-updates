@@ -1,0 +1,67 @@
+name: Android R3 Beta Build
+
+on:
+  push:
+    branches:
+      - android-r3-build-fea309c4
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore fixed beta signing key
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+
+      - name: Build signed release APK
+        env:
+          CLINICA_KEYSTORE: ${{ github.workspace }}/android-r3/beta-test.jks
+          CLINICA_STORE_PASSWORD: ClinicaBeta2026!
+          CLINICA_KEY_ALIAS: clinica_beta
+          CLINICA_KEY_PASSWORD: ClinicaBeta2026!
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+
+      - name: Verify APK signature and package
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
+          echo "SHA256=$(sha256sum "$APK" | awk '{print $1}')" | tee -a android-r3/apk-verification.txt
+          echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R3_TEST_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+          if-no-files-found: error
+          retention-days: 1
