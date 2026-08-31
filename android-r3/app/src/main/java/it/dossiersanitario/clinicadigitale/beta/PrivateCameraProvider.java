@@ -29,7 +29,7 @@ public final class PrivateCameraProvider extends ContentProvider {
         if (matcher.match(uri) != CAMERA_TEMP) throw new FileNotFoundException("URI non consentito");
         String name = uri.getLastPathSegment();
         if (name == null || !name.matches("capture_[0-9]+\\.jpg")) throw new FileNotFoundException("Nome non valido");
-        File dir = new File(requireContext().getCacheDir(), "clinica_camera");
+        File dir = new File(providerContext().getCacheDir(), "clinica_camera");
         File file = new File(dir, name);
         try {
             String base = dir.getCanonicalPath() + File.separator;
@@ -38,7 +38,7 @@ public final class PrivateCameraProvider extends ContentProvider {
         return file;
     }
 
-    private Context requireContext() throws FileNotFoundException {
+    private Context providerContext() throws FileNotFoundException {
         Context c = getContext();
         if (c == null) throw new FileNotFoundException("Contesto non disponibile");
         return c;
