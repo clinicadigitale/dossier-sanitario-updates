@@ -1,9 +1,9 @@
-name: Android R4 Beta Build
+name: Android R5 Beta Build
 
 on:
   push:
     branches:
-      - android-r4-build-0831
+      - android-r5-build-0831
 
 permissions:
   contents: read
@@ -65,7 +65,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R4_TEST_APK
+          name: ClinicaDigitale_Android_R5_TEST_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
