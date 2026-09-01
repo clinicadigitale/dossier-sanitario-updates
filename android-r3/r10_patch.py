@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 BASE = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
 MAIN = BASE / 'R6MainActivity.java'
@@ -206,3 +207,4 @@ def patch_main():
 
 patch_main()
 print('Android R10 performance patch applied successfully')
+runpy.run_path('android-r3/r11_patch.py', run_name='__main__')
