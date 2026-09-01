@@ -1,9 +1,9 @@
-name: Android R9 Beta Build
+name: Android R10 Beta Build
 
 on:
   push:
     branches:
-      - android-r9-build-0831
+      - android-r10-build-0901
 
 permissions:
   contents: read
@@ -21,6 +21,9 @@ jobs:
 
       - name: Apply R9 source patch
         run: python android-r3/r9_patch.py
+
+      - name: Apply R10 performance patch
+        run: python android-r3/r10_patch.py
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -71,7 +74,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R9_TEST_APK
+          name: ClinicaDigitale_Android_R10_TEST_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
