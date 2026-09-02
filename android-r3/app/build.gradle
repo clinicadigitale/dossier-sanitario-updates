@@ -10,11 +10,18 @@ android {
         applicationId 'it.dossiersanitario.clinicadigitale.beta'
         minSdk 29
         targetSdk 35
-        versionCode 11
-        versionName '1.0.0-android-r11-test'
+        versionCode 12
+        versionName '1.0.0-android-r12-test'
 
         ndk {
             abiFilters 'arm64-v8a'
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += ['**/librclone.so']
         }
     }
 
@@ -38,4 +45,6 @@ android {
 dependencies {
     implementation 'org.opencv:opencv:4.10.0'
     implementation 'com.google.mlkit:text-recognition:16.0.1'
+    implementation 'androidx.work:work-runtime:2.9.1'
+    implementation 'com.google.zxing:core:3.5.3'
 }
