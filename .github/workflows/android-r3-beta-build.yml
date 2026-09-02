@@ -1,9 +1,9 @@
-name: Android R10 Beta Build
+name: Android R12 Beta Build
 
 on:
   push:
     branches:
-      - android-r10-build-0901
+      - android-r12-build-0902
 
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,8 +22,24 @@ jobs:
       - name: Apply R9 source patch
         run: python android-r3/r9_patch.py
 
-      - name: Apply R10 performance patch
+      - name: Apply R10 and R11 source patches
         run: python android-r3/r10_patch.py
+
+      - name: Apply R12 family cloud patch
+        run: python android-r3/r12_patch.py
+
+      - name: Apply R12 final invariants
+        run: python android-r3/r12_final_patch.py
+
+      - name: Verify R12 source invariants
+        run: |
+          grep -q 'Android R12 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'Collega a un Dossier familiare esistente' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'Memoria esterna / scheda SD' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'Automatica intelligente' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'Apri nell’app Authenticator' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          ! grep -q 'durationMinutes", 60' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          ! grep -q 'durationMinutes",e.optInt("durationMinutes",60)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -44,6 +60,17 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz \
+            --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          test -s android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          file android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+
       - name: Restore fixed beta signing key
         run: |
           base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
@@ -62,19 +89,22 @@ jobs:
           CLINICA_KEY_PASSWORD: ClinicaBeta2026!
         run: gradle -p android-r3 --no-daemon :app:assembleRelease
 
-      - name: Verify APK signature and package
+      - name: Verify APK signature package permissions and transport
         run: |
           APK=android-r3/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 8 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO'
           echo "SHA256=$(sha256sum "$APK" | awk '{print $1}')" | tee -a android-r3/apk-verification.txt
           echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R10_TEST_APK
+          name: ClinicaDigitale_Android_R12_TEST_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
