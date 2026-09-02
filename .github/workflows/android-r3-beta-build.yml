@@ -1,9 +1,9 @@
-name: Android R12 Beta Build
+name: Android R13 Beta Build
 
 on:
   push:
     branches:
-      - android-r12-build-0902
+      - android-r13-build-0902
 
 permissions:
   contents: read
@@ -31,15 +31,22 @@ jobs:
       - name: Apply R12 final invariants
         run: python android-r3/r12_final_patch.py
 
-      - name: Verify R12 source invariants
+      - name: Apply R13 fixes
+        run: python android-r3/r13_patch.py
+
+      - name: Verify R13 source invariants
         run: |
-          grep -q 'Android R12 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
-          grep -q 'Collega a un Dossier familiare esistente' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q 'Memoria esterna / scheda SD' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q 'Automatica intelligente' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q 'Apri nell’app Authenticator' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'Android R13 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'PDF / file' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'Scatta foto' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'Scansiona documento' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'confirmDeletePrivateDocument' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'documentActionButton' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'Collega questo dispositivo al mio account esistente' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'verifyAccountPassword' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java
+          grep -q 'portableMfaUnprotect' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java
+          grep -q 'queueLocalPhotoDelete' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           ! grep -q 'durationMinutes", 60' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          ! grep -q 'durationMinutes",e.optInt("durationMinutes",60)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -69,7 +76,6 @@ jobs:
           gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
           chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
           test -s android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
-          file android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
 
       - name: Restore fixed beta signing key
         run: |
@@ -104,7 +110,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R12_TEST_APK
+          name: ClinicaDigitale_Android_R13_TEST_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
