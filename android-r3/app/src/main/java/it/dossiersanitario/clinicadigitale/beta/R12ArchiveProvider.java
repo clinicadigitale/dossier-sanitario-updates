@@ -19,7 +19,11 @@ public final class R12ArchiveProvider extends ContentProvider {
         if (getContext() == null) throw new FileNotFoundException("Contesto non disponibile");
         String name = uri.getLastPathSegment();
         if (name == null || !name.matches("[A-Za-z0-9._-]+")) throw new FileNotFoundException("Nome file non valido");
-        File dir = new File(getContext().getCacheDir(), "r12_view");
+        String first = uri.getPathSegments().isEmpty() ? "" : uri.getPathSegments().get(0);
+        File dir;
+        if ("document".equals(first)) dir = new File(getContext().getFilesDir(), "dossier_documents");
+        else if ("view".equals(first)) dir = new File(getContext().getCacheDir(), "r12_view");
+        else throw new FileNotFoundException("Percorso non consentito");
         File file = new File(dir, name);
         try {
             String base = dir.getCanonicalPath() + File.separator;
@@ -49,7 +53,7 @@ public final class R12ArchiveProvider extends ContentProvider {
         } catch (Exception e) { return null; }
     }
 
-    @Override public int delete(Uri uri, String selection, String[] selectionArgs) { try { return resolve(uri).delete() ? 1 : 0; } catch (Exception e) { return 0; } }
+    @Override public int delete(Uri uri, String selection, String[] selectionArgs) { return 0; }
     @Override public Uri insert(Uri uri, ContentValues values) { throw new UnsupportedOperationException(); }
     @Override public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { throw new UnsupportedOperationException(); }
 }
