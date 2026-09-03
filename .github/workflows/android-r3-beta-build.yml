@@ -1,9 +1,9 @@
-name: Android R15 Account Verification Build
+name: Android R16 Continuous Import Progress Build
 
 on:
   push:
     branches:
-      - android-r14-family-password-0903
+      - android-r16-continuous-progress-0903
 
 permissions:
   contents: read
@@ -74,12 +74,25 @@ jobs:
           grep -q 'if (wanted.equals(key)) return user;' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'Account verificato' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'Importazione del Dossier' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q 'Download del Dossier dal cloud' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q 'Verifica integrità del Dossier' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'attachPasswordEye' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'PasswordTransformationMethod' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
-          grep -q "versionCode 15" android-r3/app/build.gradle
-          grep -q "versionName '1.0.0-android-r15-test'" android-r3/app/build.gradle
+
+      - name: Apply R16 continuous criterion-based import progress
+        run: python android-r3/r16_patch.py
+
+      - name: Verify R16 surgical invariants
+        run: |
+          grep -q 'Android R16 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'copyFromRemoteWithProgress' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Rclone.java
+          grep -q -- '--inplace' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Rclone.java
+          grep -q 'CountingInputStream' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'setImportRangeProgress' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'verifySnapshotIntegrityProgress' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'importSnapshotWithProgress' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'formatBytes(safeDone)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'scheduleImmediate(activity, prefs)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q "versionCode 16" android-r3/app/build.gradle
+          grep -q "versionName '1.0.0-android-r16-test'" android-r3/app/build.gradle
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -137,7 +150,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
           unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
           grep -qi '9abd08f6382a49975b71ffff1a76fbb3292b508f2a3404fa0e4b2b1f3f2d1a0e' android-r3/apk-verification.txt
-          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='15' versionName='1.0.0-android-r15-test'" android-r3/apk-verification.txt
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='16' versionName='1.0.0-android-r16-test'" android-r3/apk-verification.txt
           ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO'
           echo "SHA256=$(sha256sum "$APK" | awk '{print $1}')" | tee -a android-r3/apk-verification.txt
           echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
@@ -145,7 +158,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ClinicaDigitale_Android_R15_ACCOUNT_PROGRESS_EYE_APK
+          name: ClinicaDigitale_Android_R16_CONTINUOUS_IMPORT_PROGRESS_APK
           path: |
             android-r3/app/build/outputs/apk/release/app-release.apk
             android-r3/apk-verification.txt
