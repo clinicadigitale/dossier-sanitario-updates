@@ -10,8 +10,8 @@ android {
         applicationId 'it.dossiersanitario.clinicadigitale.beta'
         minSdk 29
         targetSdk 35
-        versionCode 15
-        versionName '1.0.0-android-r15-test'
+        versionCode 16
+        versionName '1.0.0-android-r16-test'
 
         ndk {
             abiFilters 'arm64-v8a'
