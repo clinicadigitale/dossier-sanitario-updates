@@ -64,10 +64,14 @@ jobs:
       - name: Apply R15 immediate account verification and progress patch
         run: python android-r3/r15_patch.py
 
+      - name: Apply R15 compile fix
+        run: python android-r3/r15_compile_fix.py
+
       - name: Verify R15 surgical invariants
         run: |
           grep -q 'Android R15 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
           grep -q 'findExistingAccountInSecurityBundle' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'if (wanted.equals(key)) return user;' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'Account verificato' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'Importazione del Dossier' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'Download del Dossier dal cloud' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
