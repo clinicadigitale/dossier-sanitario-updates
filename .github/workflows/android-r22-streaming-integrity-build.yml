@@ -1,0 +1,231 @@
+name: Android R22 Streaming Integrity Verified Build
+
+on:
+  push:
+    branches:
+      - android-r22-streaming-integrity-0904
+
+permissions:
+  contents: read
+
+jobs:
+  android-runtime-test:
+    runs-on: macos-15-intel
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply source patches through R22
+        run: |
+          python3 android-r3/r8_patch.py
+          python3 android-r3/r9_patch.py
+          python3 android-r3/r10_patch.py
+          python3 android-r3/r12_patch.py
+          python3 android-r3/r12_final_patch.py
+          python3 android-r3/r13_patch.py
+          python3 android-r3/r14_patch.py
+          python3 android-r3/r15_patch.py
+          python3 android-r3/r15_compile_fix.py
+          python3 android-r3/r16_patch.py
+          python3 android-r3/r17_patch.py
+          python3 android-r3/r18_patch.py
+          python3 android-r3/r18_runtime_fix.py
+          python3 android-r3/r19_patch.py
+          python3 android-r3/r20_checkpoint_crypto_patch.py
+          python3 android-r3/r21_fast_integrity_resume_patch.py
+          python3 android-r3/r22_streaming_integrity_patch.py
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Prepare isolated Android runtime smoke app
+        run: |
+          printf "\ninclude ':checkpoint-smoke'\n" >> android-r3/settings.gradle
+          mkdir -p android-r3/checkpoint-smoke/src/main/java/it/dossiersanitario/clinicadigitale/beta
+          cp android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R20CheckpointCrypto.java android-r3/checkpoint-smoke/src/main/java/it/dossiersanitario/clinicadigitale/beta/R20CheckpointCrypto.java
+          cp android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R21FastDsl5.java android-r3/checkpoint-smoke/src/main/java/it/dossiersanitario/clinicadigitale/beta/R21FastDsl5.java
+          cp android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R22StreamingDsl5.java android-r3/checkpoint-smoke/src/main/java/it/dossiersanitario/clinicadigitale/beta/R22StreamingDsl5.java
+
+      - name: Run Android Keystore and 160 MiB streaming tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: gradle -p android-r3 --no-daemon :checkpoint-smoke:connectedDebugAndroidTest
+
+      - name: Verify Android runtime results
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob('android-r3/checkpoint-smoke/build/outputs/androidTest-results/connected/**/TEST-*.xml', recursive=True)
+          if not files:
+              raise SystemExit('Android runtime test report missing')
+          tests = failures = errors = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              tests += int(root.attrib.get('tests', 0))
+              failures += int(root.attrib.get('failures', 0))
+              errors += int(root.attrib.get('errors', 0))
+          print(f'ANDROID_TESTS={tests} FAILURES={failures} ERRORS={errors}')
+          if tests < 3 or failures or errors:
+              raise SystemExit('Android R22 runtime gate failed')
+          PY
+
+  build-test-sign:
+    needs: android-runtime-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply source patches through R22
+        run: |
+          python android-r3/r8_patch.py
+          python android-r3/r9_patch.py
+          python android-r3/r10_patch.py
+          python android-r3/r12_patch.py
+          python android-r3/r12_final_patch.py
+          python android-r3/r13_patch.py
+          python android-r3/r14_patch.py
+          python android-r3/r15_patch.py
+          python android-r3/r15_compile_fix.py
+          python android-r3/r16_patch.py
+          python android-r3/r17_patch.py
+          python android-r3/r18_patch.py
+          python android-r3/r18_runtime_fix.py
+          python android-r3/r19_patch.py
+          python android-r3/r20_checkpoint_crypto_patch.py
+          python android-r3/r21_fast_integrity_resume_patch.py
+          python android-r3/r22_streaming_integrity_patch.py
+
+      - name: Verify R22 source invariants
+        run: |
+          grep -q 'Android R22 TEST' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+          grep -q 'R20CheckpointCrypto.protect(context, state.toString())' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'R20CheckpointCrypto.unprotect(activity, protectedState)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'R22StreamingDsl5.decryptVerified' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          ! grep -q 'R21FastDsl5.decryptVerified' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'r22_verified_.*, snapshot.getParentFile()' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'verifiedZip = prepareVerifiedSnapshotProgress(activity, progress, partialRef, recovery)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'importSnapshotWithProgress(activity, progress, prefs, cfg, verifiedZip)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          ! grep -q 'importSnapshotWithProgress(activity, progress, prefs, cfg, partialRef, recovery)' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'In questa fase possono essere necessari diversi minuti.' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'formatProgressBytesOneDecimal' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'Riprendi importazione del Dossier' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'safeStartExistingImportProgress' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'FLAG_KEEP_SCREEN_ON' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'PARTIAL_WAKE_LOCK' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q "bcprov-jdk18on:1.78.1" android-r3/app/build.gradle
+          grep -q "versionCode 22" android-r3/app/build.gradle
+          grep -q "versionName '1.0.0-android-r22-test'" android-r3/app/build.gradle
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+
+      - name: Run JVM regressions through R22
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest --tests it.dossiersanitario.clinicadigitale.beta.R17ProgressRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R18ResumeRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R19TransactionRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R20CheckpointRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R21FastIntegrityResumeTest --tests it.dossiersanitario.clinicadigitale.beta.R22StreamingIntegrityTest
+
+      - name: Verify JVM test reports
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          files = glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not files:
+              raise SystemExit('JVM test reports missing')
+          tests = failures = errors = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              tests += int(root.attrib.get('tests', 0))
+              failures += int(root.attrib.get('failures', 0))
+              errors += int(root.attrib.get('errors', 0))
+          if tests < 15 or failures or errors:
+              raise SystemExit(f'R22 regression gate failed tests={tests} failures={failures} errors={errors}')
+          report = f'R22_RUNTIME_TESTS=PASS\nJVM_TESTS={tests}\nJVM_FAILURES={failures}\nJVM_ERRORS={errors}\nANDROID_KEYSTORE_SMOKE=PASS\nANDROID_160_MIB_STREAMING_SMOKE=PASS\n'
+          open('android-r3/r22-runtime-test-report.txt','w',encoding='utf-8').write(report)
+          print(report)
+          PY
+
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          test -s android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+
+      - name: Restore fixed beta signing key
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+
+      - name: Build signed R22 release APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+
+      - name: Verify R22 APK identity signature permissions and transport
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
+          grep -qi '9abd08f6382a49975b71ffff1a76fbb3292b508f2a3404fa0e4b2b1f3f2d1a0e' android-r3/apk-verification.txt
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='22' versionName='1.0.0-android-r22-test'" android-r3/apk-verification.txt
+          grep -q 'android.permission.WAKE_LOCK' android-r3/apk-verification.txt
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO'
+          echo "SHA256=$(sha256sum "$APK" | awk '{print $1}')" | tee -a android-r3/apk-verification.txt
+          echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
+
+      - name: Upload verified R22 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R22_STREAMING_INTEGRITY_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r22-runtime-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
