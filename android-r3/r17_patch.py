@@ -15,6 +15,43 @@ def replace_once(text, old, new, label):
 def patch_cloud():
     s = CLOUD.read_text(encoding='utf-8')
 
+    s = replace_once(
+        s,
+        '    private interface ImportProgressCallback {',
+        '    interface ImportProgressCallback {',
+        'progress callback visibility'
+    )
+
+    old_range = r'''    private static void setImportRangeProgress(Activity activity, ProgressDialog progress, int start, int end, long done, long total, String label) {
+        long safeTotal = Math.max(1L, total);
+        long safeDone = Math.max(0L, Math.min(done, safeTotal));
+        int value = start + (int) Math.floor((safeDone * (double) (end - start)) / safeTotal);
+        setImportProgress(activity, progress, value, label + "\n" + formatBytes(safeDone) + " / " + formatBytes(safeTotal));
+    }
+'''
+    new_range = r'''    static final int IMPORT_PROGRESS_START = 0;
+    static final int DOWNLOAD_PROGRESS_START = 5;
+    static final int DOWNLOAD_PROGRESS_END = 65;
+    static final int INTEGRITY_PROGRESS_START = 65;
+    static final int INTEGRITY_PROGRESS_END = 78;
+    static final int DATA_PROGRESS_START = 78;
+    static final int DATA_PROGRESS_END = 96;
+
+    static int importRangePercent(int start, int end, long done, long total) {
+        long safeTotal = Math.max(1L, total);
+        long safeDone = Math.max(0L, Math.min(done, safeTotal));
+        return start + (int) Math.floor((safeDone * (double) (end - start)) / safeTotal);
+    }
+
+    private static void setImportRangeProgress(Activity activity, ProgressDialog progress, int start, int end, long done, long total, String label) {
+        long safeTotal = Math.max(1L, total);
+        long safeDone = Math.max(0L, Math.min(done, safeTotal));
+        int value = importRangePercent(start, end, safeDone, safeTotal);
+        setImportProgress(activity, progress, value, label + "\n" + formatBytes(safeDone) + " / " + formatBytes(safeTotal));
+    }
+'''
+    s = replace_once(s, old_range, new_range, 'range progress model')
+
     start = s.find('    private static void verifySnapshotIntegrityProgress(Activity activity, ProgressDialog progress, File snapshot, byte[] recovery) throws Exception {')
     end = s.find('    private static void populateExistingConnectionConfig(', start)
     if start < 0 or end < 0:
@@ -60,13 +97,19 @@ def patch_cloud():
         }
     }
 
-    private static void verifySnapshotIntegrityProgress(Activity activity, ProgressDialog progress, File snapshot, byte[] recovery) throws Exception {
+    static void verifySnapshotIntegrityCore(File snapshot, byte[] recovery, ImportProgressCallback callback) throws Exception {
         byte[] buffer = new byte[262144];
-        try (InputStream decrypted = openDsl5ProgressStream(snapshot, recovery,
-                (done, all) -> setImportRangeProgress(activity, progress, 65, 78, done, all, "Verifica integrità del Dossier..."))) {
+        try (InputStream decrypted = openDsl5ProgressStream(snapshot, recovery, callback)) {
             while (decrypted.read(buffer) >= 0) {}
         }
-        setImportProgress(activity, progress, 78, "Integrità verificata.");
+    }
+
+    private static void verifySnapshotIntegrityProgress(Activity activity, ProgressDialog progress, File snapshot, byte[] recovery) throws Exception {
+        verifySnapshotIntegrityCore(snapshot, recovery,
+                (done, all) -> setImportRangeProgress(activity, progress,
+                        INTEGRITY_PROGRESS_START, INTEGRITY_PROGRESS_END,
+                        done, all, "Verifica integrità del Dossier..."));
+        setImportProgress(activity, progress, INTEGRITY_PROGRESS_END, "Integrità verificata.");
     }
 
 '''
@@ -80,18 +123,22 @@ def patch_cloud():
              ZipInputStream zip = new ZipInputStream(decrypted)) {
 '''
     new_import = r'''        try (InputStream decrypted = openDsl5ProgressStream(snapshot, recovery,
-                     (done, all) -> setImportRangeProgress(activity, progress, 78, 96, done, all, "Importazione dati del Dossier..."));
+                     (done, all) -> setImportRangeProgress(activity, progress,
+                             DATA_PROGRESS_START, DATA_PROGRESS_END,
+                             done, all, "Importazione dati del Dossier..."));
              ZipInputStream zip = new ZipInputStream(decrypted)) {
 '''
     s = replace_once(s, old_import, new_import, 'encrypted-source import progress')
 
-    s = replace_once(s, '                setImportProgress(activity, progress, 2, "Preparazione archivio...");', '                setImportProgress(activity, progress, 0, "Preparazione archivio...");', 'start at zero')
+    s = replace_once(s, '                setImportProgress(activity, progress, 2, "Preparazione archivio...");', '                setImportProgress(activity, progress, IMPORT_PROGRESS_START, "Preparazione archivio...");', 'start at zero')
     s = replace_once(s, '                setImportProgress(activity, progress, 6, "Controllo memoria locale...");', '                setImportProgress(activity, progress, 1, "Controllo memoria locale...");', 'memory progress')
     s = replace_once(s, '                setImportProgress(activity, progress, 10, "Ricerca della copia più recente...");', '                setImportProgress(activity, progress, 2, "Ricerca della copia più recente...");', 'snapshot progress')
     s = replace_once(s, '                setImportProgress(activity, progress, 15, "Controllo spazio disponibile...");', '                setImportProgress(activity, progress, 3, "Controllo spazio disponibile...");', 'space progress')
     s = replace_once(s, '                partial = new File(root, "current_snapshot.dsl5.part");', '                setImportProgress(activity, progress, 4, "Preparazione download...");\n                partial = new File(root, "current_snapshot.dsl5.part");', 'download preparation')
-    s = replace_once(s, '                setImportProgress(activity, progress, 20, "Download del Dossier dal cloud...");', '                setImportProgress(activity, progress, 5, "Download del Dossier dal cloud...");', 'download start')
-    s = replace_once(s, '(done, total) -> setImportRangeProgress(activity, progress, 20, 65, done, total, "Download del Dossier dal cloud...")', '(done, total) -> setImportRangeProgress(activity, progress, 5, 65, done, total, "Download del Dossier dal cloud...")', 'download range')
+    s = replace_once(s, '                setImportProgress(activity, progress, 20, "Download del Dossier dal cloud...");', '                setImportProgress(activity, progress, DOWNLOAD_PROGRESS_START, "Download del Dossier dal cloud...");', 'download start')
+    s = replace_once(s, '(done, total) -> setImportRangeProgress(activity, progress, 20, 65, done, total, "Download del Dossier dal cloud...")', '(done, total) -> setImportRangeProgress(activity, progress, DOWNLOAD_PROGRESS_START, DOWNLOAD_PROGRESS_END, done, total, "Download del Dossier dal cloud...")', 'download range')
+    s = replace_once(s, '                setImportProgress(activity, progress, 65, "Verifica integrità del Dossier...");', '                setImportProgress(activity, progress, INTEGRITY_PROGRESS_START, "Verifica integrità del Dossier...");', 'integrity start')
+    s = replace_once(s, '                setImportProgress(activity, progress, 78, "Importazione dati del Dossier...");', '                setImportProgress(activity, progress, DATA_PROGRESS_START, "Importazione dati del Dossier...");', 'data start')
 
     CLOUD.write_text(s, encoding='utf-8')
 
@@ -108,6 +155,12 @@ def patch_main_and_version():
     g = GRADLE.read_text(encoding='utf-8')
     g = replace_once(g, 'versionCode 16', 'versionCode 17', 'versionCode')
     g = replace_once(g, "versionName '1.0.0-android-r16-test'", "versionName '1.0.0-android-r17-test'", 'versionName')
+    g = replace_once(
+        g,
+        "dependencies {\n",
+        "dependencies {\n    testImplementation 'junit:junit:4.13.2'\n    testImplementation 'org.robolectric:robolectric:4.13.2'\n",
+        'runtime test dependencies'
+    )
     GRADLE.write_text(g, encoding='utf-8')
 
 
