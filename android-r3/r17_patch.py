@@ -158,7 +158,7 @@ def patch_main_and_version():
     g = replace_once(
         g,
         "dependencies {\n",
-        "dependencies {\n    testImplementation 'junit:junit:4.13.2'\n    testImplementation 'org.robolectric:robolectric:4.13.2'\n",
+        "dependencies {\n    testImplementation 'junit:junit:4.13.2'\n    testImplementation 'org.robolectric:robolectric:4.13.1'\n",
         'runtime test dependencies'
     )
     GRADLE.write_text(g, encoding='utf-8')
