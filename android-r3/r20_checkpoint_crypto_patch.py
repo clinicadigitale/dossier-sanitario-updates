@@ -49,7 +49,6 @@ final class R20CheckpointCrypto {
         System.arraycopy(encrypted, 0, packed, iv.length, encrypted.length);
         String out = PREFIX + Base64.encodeToString(packed, Base64.NO_WRAP);
 
-        // Self-test on the exact value before it is persisted.
         String roundTrip = unprotect(context, out);
         if (!String.valueOf(plain).equals(roundTrip)) throw new Exception("Autoverifica cifratura checkpoint non riuscita");
         return out;
@@ -114,6 +113,11 @@ final class R20CheckpointCrypto {
 ''', encoding='utf-8')
 
 s = CLOUD.read_text(encoding='utf-8')
+
+helper = '''    static boolean pendingExistingImportAvailable(String protectedState) {\n        return protectedState != null && protectedState.trim().length() > 20;\n    }\n'''
+helper_compat = helper + '''\n    static boolean pendingExistingImportAvailable(String associationStatus, String protectedState) {\n        return "import_pending".equals(String.valueOf(associationStatus))\n                && pendingExistingImportAvailable(protectedState);\n    }\n'''
+s = replace_once(s, helper, helper_compat, 'legacy pending helper compatibility')
+
 s = replace_once(
     s,
     '        String protectedState = R12Crypto.protectSecret(context, state.toString());\n',
