@@ -17,12 +17,12 @@ import org.bouncycastle.crypto.params.KeyParameter;
 /**
  * Bounded-memory DSL5 AES-GCM verifier/decrypter.
  *
- * Android's platform AES/GCM provider is allowed to retain plaintext until
- * authentication succeeds. With a single large GCM record this can make heap
- * usage grow with the archive size. This implementation uses Bouncy Castle's
- * lightweight GCM engine, which retains only the authentication tail while
- * streaming plaintext into a temporary file. The file is promoted/used only
- * after doFinal() verifies the GCM tag; on any failure it is deleted.
+ * Android's platform AES/GCM provider may retain plaintext until authentication
+ * succeeds. With one large GCM record this can make heap use grow with archive
+ * size. This implementation uses Bouncy Castle's lightweight GCM engine, which
+ * streams plaintext with bounded buffers into a temporary file. The caller may
+ * use that file only after doFinal() verifies the GCM tag. On failure it is
+ * deleted.
  */
 final class R22StreamingDsl5 {
     interface ProgressCallback {
@@ -94,7 +94,7 @@ final class R22StreamingDsl5 {
                 done += n;
 
                 if (callback != null) {
-                    long now = android.os.SystemClock.elapsedRealtime();
+                    long now = System.nanoTime() / 1_000_000L;
                     if (lastProgressAt == 0L || now - lastProgressAt >= PROGRESS_MIN_INTERVAL_MS || done >= total) {
                         callback.onProgress(Math.min(done, total), total);
                         lastProgressAt = now;
