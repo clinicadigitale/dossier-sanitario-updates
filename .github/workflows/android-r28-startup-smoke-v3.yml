@@ -69,6 +69,8 @@ jobs:
           ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | sort -V | tail -1)
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
           "$ZIPALIGN" -p -f 4 /tmp/r28-unsigned.apk /tmp/r28-aligned.apk
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" -noprompt
           "$APKSIGNER" sign --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out /tmp/r28-smoke.apk /tmp/r28-aligned.apk
           "$APKSIGNER" verify /tmp/r28-smoke.apk
           test -z "$(unzip -l /tmp/r28-smoke.apk | awk '{print $4}' | grep '^lib/' || true)"
