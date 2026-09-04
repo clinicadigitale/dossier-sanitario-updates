@@ -1,0 +1,82 @@
+name: Android R28 Startup Smoke V3
+
+on:
+  push:
+    branches:
+      - android-r28-startup-async-0904
+
+permissions:
+  contents: read
+
+jobs:
+  configured-startup-smoke-v3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Apply source patches through R28
+        run: |
+          python android-r3/r8_patch.py
+          python android-r3/r9_patch.py
+          python android-r3/r10_patch.py
+          python android-r3/r12_patch.py
+          python android-r3/r12_final_patch.py
+          python android-r3/r13_patch.py
+          python android-r3/r14_patch.py
+          python android-r3/r15_patch.py
+          python android-r3/r15_compile_fix.py
+          python android-r3/r16_patch.py
+          python android-r3/r17_patch.py
+          python android-r3/r18_patch.py
+          python android-r3/r18_runtime_fix.py
+          python android-r3/r19_patch.py
+          python android-r3/r20_checkpoint_crypto_patch.py
+          python android-r3/r21_fast_integrity_resume_patch.py
+          python android-r3/r22_streaming_integrity_patch.py
+          python android-r3/r23_login_iv_fix_patch_v2.py
+          python android-r3/r24_admin_profile_resume_patch.py
+          python android-r3/r25_stream_fix_eye_patch.py
+          python android-r3/r26_full_snapshot_bridge_patch.py
+          python android-r3/r26_near_final_ui_patch.py
+          python android-r3/r27_exact_import_hook.py
+          python android-r3/r27_ui_core_patch.py
+          python android-r3/r27_ui_sections_patch.py
+          python android-r3/r27_ui_preferences_version_patch.py
+          python android-r3/r27_upgrade_bootstrap_patch.py
+          python android-r3/r28_startup_async_patch.py
+      - name: Restore official icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build debug startup APK
+        run: gradle -p android-r3 --no-daemon :app:assembleDebug
+      - name: Prepare ABI-neutral emulator-only APK
+        run: |
+          cp android-r3/app/build/outputs/apk/debug/app-debug.apk /tmp/r28-unsigned.apk
+          zip -d /tmp/r28-unsigned.apk 'lib/*' || true
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | sort -V | tail -1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          "$ZIPALIGN" -p -f 4 /tmp/r28-unsigned.apk /tmp/r28-aligned.apk
+          "$APKSIGNER" sign --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out /tmp/r28-smoke.apk /tmp/r28-aligned.apk
+          "$APKSIGNER" verify /tmp/r28-smoke.apk
+          test -z "$(unzip -l /tmp/r28-smoke.apk | awk '{print $4}' | grep '^lib/' || true)"
+      - name: Verify configured startup opens login immediately on API 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash android-r3/r28_startup_smoke_v3.sh
