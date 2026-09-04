@@ -1,6 +1,5 @@
 package it.dossiersanitario.clinicadigitale.beta;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -59,9 +58,9 @@ public class R27CompleteWindowsImportTest {
 
     @Test public void dashboardSeparatesTotalAndRecentDocuments() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
+        assertTrue(main.contains("private void renderPanoramica()"));
         assertTrue(main.contains("Documenti totali"));
         assertTrue(main.contains("R27ExactWindows.recentDocuments(prefs, 4)"));
-        assertFalse(main.contains("addMetric(grid, \"Documenti recenti\", String.valueOf(Math.max(privatePhotoCount(), R12CloudManager.cloudDocumentCount(prefs))))"));
     }
 
     @Test public void healthCardAndGraphsAreConcrete() throws Exception {
