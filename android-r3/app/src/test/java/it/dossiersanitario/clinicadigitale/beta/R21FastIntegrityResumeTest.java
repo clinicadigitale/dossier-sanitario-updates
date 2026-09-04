@@ -73,7 +73,8 @@ public class R21FastIntegrityResumeTest {
         assertTrue(cloud.contains("verifiedZip = prepareVerifiedSnapshotProgress(activity, progress, partialRef, recovery)"));
         assertTrue(cloud.contains("importSnapshotWithProgress(activity, progress, prefs, cfg, verifiedZip)"));
         assertFalse(cloud.contains("importSnapshotWithProgress(activity, progress, prefs, cfg, partialRef, recovery)"));
-        assertTrue(cloud.contains("R21FastDsl5.decryptVerified(snapshot, verified, recovery"));
+        assertTrue(cloud.contains("R22StreamingDsl5.decryptVerified(snapshot, verified, recovery"));
+        assertFalse(cloud.contains("R21FastDsl5.decryptVerified(snapshot, verified, recovery"));
         assertTrue(cloud.contains("In questa fase possono essere necessari diversi minuti."));
         assertTrue(cloud.contains("Importazione del Dossier incompleta. Il dispositivo è già autenticato: non devi reinserire chiave Dossier, account o TOTP."));
         assertTrue(cloud.contains("R20CheckpointCrypto.protect(context, state.toString())"));
