@@ -14,16 +14,10 @@ import java.util.List;
 public class R18ResumeRuntimeTest {
 
     @Test
-    public void pendingAuthenticatedImportIsRecognizedWithoutRepeatingLogin() throws Exception {
-        JSONObject cfg = new JSONObject();
-        cfg.put("associationStatus", "import_pending");
-        assertTrue(R12CloudManager.pendingExistingImportAvailable(cfg, "123456789012345678901234567890"));
-
-        cfg.put("associationStatus", "active");
-        assertFalse(R12CloudManager.pendingExistingImportAvailable(cfg, "123456789012345678901234567890"));
-
-        cfg.put("associationStatus", "import_pending");
-        assertFalse(R12CloudManager.pendingExistingImportAvailable(cfg, "short"));
+    public void pendingAuthenticatedImportIsRecognizedWithoutRepeatingLogin() {
+        assertTrue(R12CloudManager.pendingExistingImportAvailable("import_pending", "123456789012345678901234567890"));
+        assertFalse(R12CloudManager.pendingExistingImportAvailable("active", "123456789012345678901234567890"));
+        assertFalse(R12CloudManager.pendingExistingImportAvailable("import_pending", "short"));
     }
 
     @Test
