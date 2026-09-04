@@ -4,19 +4,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.json.JSONObject;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
-import org.robolectric.annotation.Config;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
-@RunWith(RobolectricTestRunner.class)
-@Config(manifest = Config.NONE, sdk = 34)
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 public class R17ProgressRuntimeTest {
 
     @Test
@@ -45,13 +47,27 @@ public class R17ProgressRuntimeTest {
         byte[] plain = new byte[4 * 1024 * 1024];
         for (int i = 0; i < plain.length; i++) plain[i] = (byte) (i * 31 + (i >>> 8));
 
-        JSONObject meta = new JSONObject();
-        meta.put("kind", "r17-runtime-progress-test");
-        byte[] packed = R12Crypto.encryptDsl5(plain, recovery, meta);
+        byte[] iv = new byte[12];
+        for (int i = 0; i < iv.length; i++) iv[i] = (byte) (0x41 + i);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(recovery, "AES"), new GCMParameterSpec(128, iv));
+        byte[] encrypted = cipher.doFinal(plain);
+
+        String metadata = "{\"format\":\"DSL5-AESGCM\",\"version\":1,\"iv\":\""
+                + Base64.getEncoder().encodeToString(iv)
+                + "\",\"kind\":\"r17-runtime-progress-test\"}";
+        byte[] metaBytes = metadata.getBytes(StandardCharsets.UTF_8);
+
+        ByteArrayOutputStream packed = new ByteArrayOutputStream();
+        packed.write("DSL5ENC1".getBytes(StandardCharsets.US_ASCII));
+        packed.write(ByteBuffer.allocate(4).putInt(metaBytes.length).array());
+        packed.write(metaBytes);
+        packed.write(encrypted);
 
         File snapshot = File.createTempFile("r17_progress_", ".dsl5");
         try (FileOutputStream out = new FileOutputStream(snapshot)) {
-            out.write(packed);
+            out.write(packed.toByteArray());
         }
 
         List<Integer> percentages = new ArrayList<>();
