@@ -75,7 +75,6 @@ final class R21FastDsl5 {
             }
             byte[] tail = cipher.doFinal();
             if (tail != null && tail.length > 0) plain.write(tail);
-            plain.getFD().sync();
             if (callback != null) callback.onProgress(total, total);
             success = true;
             return output;
