@@ -61,7 +61,6 @@ jobs:
           grep -q 'private void renderGrafici()' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
           grep -q 'private void renderPreferenze()' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
           grep -q 'Cambia profilo' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
-          ! grep -q 'Dato di prova conservato' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java || true
           grep -q 'passwordEye' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
           grep -q 'Ricorda le credenziali su questo dispositivo' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
           grep -q 'android:configChanges="orientation|screenSize|keyboardHidden"' android-r3/app/src/main/AndroidManifest.xml
@@ -93,8 +92,8 @@ jobs:
           base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
           test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
 
-      - name: Run regressions through R26 on R27 source
-        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest --tests it.dossiersanitario.clinicadigitale.beta.R17ProgressRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R18ResumeRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R19TransactionRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R20CheckpointRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R21FastIntegrityResumeTest --tests it.dossiersanitario.clinicadigitale.beta.R22StreamingIntegrityTest --tests it.dossiersanitario.clinicadigitale.beta.R23LoginIvFixTest --tests it.dossiersanitario.clinicadigitale.beta.R24AdminProfileResumeTest --tests it.dossiersanitario.clinicadigitale.beta.R25StreamClosedEyeTest --tests it.dossiersanitario.clinicadigitale.beta.R26NearFinalTest
+      - name: Run regressions through R27
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest --tests it.dossiersanitario.clinicadigitale.beta.R17ProgressRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R18ResumeRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R19TransactionRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R20CheckpointRuntimeTest --tests it.dossiersanitario.clinicadigitale.beta.R21FastIntegrityResumeTest --tests it.dossiersanitario.clinicadigitale.beta.R22StreamingIntegrityTest --tests it.dossiersanitario.clinicadigitale.beta.R23LoginIvFixTest --tests it.dossiersanitario.clinicadigitale.beta.R24AdminProfileResumeTest --tests it.dossiersanitario.clinicadigitale.beta.R25StreamClosedEyeTest --tests it.dossiersanitario.clinicadigitale.beta.R26NearFinalTest --tests it.dossiersanitario.clinicadigitale.beta.R27CompleteWindowsImportTest
 
       - name: Verify JVM test reports
         run: |
@@ -109,7 +108,7 @@ jobs:
               tests += int(root.attrib.get('tests', 0))
               failures += int(root.attrib.get('failures', 0))
               errors += int(root.attrib.get('errors', 0))
-          if tests < 35 or failures or errors:
+          if tests < 43 or failures or errors:
               raise SystemExit(f'R27 regression gate failed tests={tests} failures={failures} errors={errors}')
           report = f'R27_TESTS=PASS\nJVM_TESTS={tests}\nJVM_FAILURES={failures}\nJVM_ERRORS={errors}\n'
           open('android-r3/r27-build-test-report.txt','w',encoding='utf-8').write(report)
