@@ -1,0 +1,83 @@
+name: Android R27 Launch Smoke Diagnostic
+
+on:
+  push:
+    branches:
+      - android-r27-complete-windows-import-0904
+
+permissions:
+  contents: read
+
+jobs:
+  launch-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Apply patches through R27
+        run: |
+          python android-r3/r8_patch.py
+          python android-r3/r9_patch.py
+          python android-r3/r10_patch.py
+          python android-r3/r12_patch.py
+          python android-r3/r12_final_patch.py
+          python android-r3/r13_patch.py
+          python android-r3/r14_patch.py
+          python android-r3/r15_patch.py
+          python android-r3/r15_compile_fix.py
+          python android-r3/r16_patch.py
+          python android-r3/r17_patch.py
+          python android-r3/r18_patch.py
+          python android-r3/r18_runtime_fix.py
+          python android-r3/r19_patch.py
+          python android-r3/r20_checkpoint_crypto_patch.py
+          python android-r3/r21_fast_integrity_resume_patch.py
+          python android-r3/r22_streaming_integrity_patch.py
+          python android-r3/r23_login_iv_fix_patch_v2.py
+          python android-r3/r24_admin_profile_resume_patch.py
+          python android-r3/r25_stream_fix_eye_patch.py
+          python android-r3/r26_full_snapshot_bridge_patch.py
+          python android-r3/r26_near_final_ui_patch.py
+          python android-r3/r27_exact_import_hook.py
+          python android-r3/r27_ui_core_patch.py
+          python android-r3/r27_ui_sections_patch.py
+          python android-r3/r27_ui_preferences_version_patch.py
+          python android-r3/r27_upgrade_bootstrap_patch.py
+      - name: Restore icon and native transport
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi android-r3/app/src/main/jniLibs/arm64-v8a
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          curl --fail --location --retry 3 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz -o /tmp/rclone.gz
+          gzip -dc /tmp/rclone.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build debug
+        run: gradle -p android-r3 --no-daemon :app:assembleDebug
+      - name: Launch on API 35 and fail on startup crash
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r android-r3/app/build/outputs/apk/debug/app-debug.apk
+            adb logcat -c
+            adb shell am start -W -n it.dossiersanitario.clinicadigitale.beta/.R6MainActivity | tee /tmp/am-start.txt
+            sleep 5
+            adb shell pidof it.dossiersanitario.clinicadigitale.beta | tee /tmp/pid.txt || true
+            adb logcat -d -v threadtime > /tmp/logcat.txt
+            echo '=== ACTIVITY START ==='
+            cat /tmp/am-start.txt
+            echo '=== PID ==='
+            cat /tmp/pid.txt
+            echo '=== FATAL ==='
+            grep -n -A40 -B10 -E 'FATAL EXCEPTION|AndroidRuntime|Process: it.dossiersanitario.clinicadigitale.beta' /tmp/logcat.txt || true
+            test -s /tmp/pid.txt
