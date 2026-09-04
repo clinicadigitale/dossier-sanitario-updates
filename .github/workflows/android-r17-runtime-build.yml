@@ -68,6 +68,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Restore official Dossier icon before runtime tests
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+
       - name: Run R17 runtime progress tests
         run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest --tests it.dossiersanitario.clinicadigitale.beta.R17ProgressRuntimeTest
 
@@ -103,11 +109,6 @@ jobs:
         run: |
           base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
           chmod 600 android-r3/beta-test.jks
-
-      - name: Restore official Dossier icon
-        run: |
-          mkdir -p android-r3/app/src/main/res/drawable-nodpi
-          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
 
       - name: Build signed R17 release APK
         run: gradle -p android-r3 --no-daemon :app:assembleRelease
