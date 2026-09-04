@@ -79,9 +79,19 @@ def patch_cloud():
                 if (n < 0) throw new Exception("Snapshot del Dossier incompleto.");
                 offset += n;
             }
-            JSONObject meta = new JSONObject(new String(metaBytes, StandardCharsets.UTF_8));
-            if (!"DSL5-AESGCM".equals(meta.optString("format"))) throw new Exception("Formato archivio cloud non valido.");
-            byte[] iv = R12Crypto.unb64(meta.getString("iv"));
+
+            String metaText = new String(metaBytes, StandardCharsets.UTF_8);
+            java.util.regex.Matcher formatMatcher = java.util.regex.Pattern
+                    .compile("\\\"format\\\"\\s*:\\s*\\\"DSL5-AESGCM\\\"")
+                    .matcher(metaText);
+            if (!formatMatcher.find()) throw new Exception("Formato archivio cloud non valido.");
+            java.util.regex.Matcher ivMatcher = java.util.regex.Pattern
+                    .compile("\\\"iv\\\"\\s*:\\s*\\\"([A-Za-z0-9+/=]+)\\\"")
+                    .matcher(metaText);
+            if (!ivMatcher.find()) throw new Exception("IV archivio cloud non disponibile.");
+            byte[] iv = java.util.Base64.getDecoder().decode(ivMatcher.group(1));
+            if (iv.length != 12) throw new Exception("IV archivio cloud non valido.");
+
             long cipherTotal = snapshot.length() - 12L - metaLength;
             if (cipherTotal <= 16L) throw new Exception("Snapshot del Dossier incompleto.");
 
@@ -158,8 +168,8 @@ def patch_main_and_version():
     g = replace_once(
         g,
         "dependencies {\n",
-        "dependencies {\n    testImplementation 'junit:junit:4.13.2'\n    testImplementation 'org.robolectric:robolectric:4.13.1'\n",
-        'runtime test dependencies'
+        "dependencies {\n    testImplementation 'junit:junit:4.13.2'\n",
+        'runtime test dependency'
     )
     GRADLE.write_text(g, encoding='utf-8')
 
