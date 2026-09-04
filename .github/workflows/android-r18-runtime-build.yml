@@ -30,6 +30,7 @@ jobs:
           python android-r3/r16_patch.py
           python android-r3/r17_patch.py
           python android-r3/r18_patch.py
+          python android-r3/r18_runtime_fix.py
 
       - name: Verify frozen and R18 invariants
         run: |
@@ -48,6 +49,8 @@ jobs:
           grep -q 'FLAG_KEEP_SCREEN_ON' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'PARTIAL_WAKE_LOCK' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'reusablePartialSnapshot' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          grep -q 'System.nanoTime()' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
+          ! grep -q 'SystemClock.elapsedRealtime()' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q '1024L \* 1024L' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
           grep -q 'android.permission.WAKE_LOCK' android-r3/app/src/main/AndroidManifest.xml
           grep -q 'IMPORT_PROGRESS_START = 0' android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java
