@@ -35,7 +35,7 @@ jobs:
           python3 android-r3/r20_checkpoint_crypto_patch.py
           python3 android-r3/r21_fast_integrity_resume_patch.py
           python3 android-r3/r22_streaming_integrity_patch.py
-          python3 android-r3/r23_login_iv_fix_patch.py
+          python3 android-r3/r23_login_iv_fix_patch_v2.py
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -120,7 +120,7 @@ jobs:
           python android-r3/r20_checkpoint_crypto_patch.py
           python android-r3/r21_fast_integrity_resume_patch.py
           python android-r3/r22_streaming_integrity_patch.py
-          python android-r3/r23_login_iv_fix_patch.py
+          python android-r3/r23_login_iv_fix_patch_v2.py
 
       - name: Verify R23 source invariants
         run: |
