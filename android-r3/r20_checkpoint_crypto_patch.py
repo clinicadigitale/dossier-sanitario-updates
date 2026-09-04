@@ -22,7 +22,6 @@ import android.util.Base64;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.security.SecureRandom;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -33,16 +32,18 @@ final class R20CheckpointCrypto {
     private static final String KEYSTORE = "AndroidKeyStore";
     private static final String ALIAS = "clinica_digitale_r20_import_checkpoint";
     private static final String PREFIX = "R20K1.";
-    private static final SecureRandom RNG = new SecureRandom();
 
     private R20CheckpointCrypto() {}
 
     static String protect(Context context, String plain) throws Exception {
         SecretKey key = usableKey(true);
-        byte[] iv = new byte[12];
-        RNG.nextBytes(iv);
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
+        // AndroidKeyStore richiede un IV generato dal provider quando
+        // randomizedEncryptionRequired e' attivo (default). Un IV fornito
+        // dal chiamante puo' essere rifiutato sul runtime Android reale.
+        cipher.init(Cipher.ENCRYPT_MODE, key);
+        byte[] iv = cipher.getIV();
+        if (iv == null || iv.length != 12) throw new Exception("IV checkpoint locale non valido");
         byte[] encrypted = cipher.doFinal(String.valueOf(plain).getBytes(StandardCharsets.UTF_8));
         byte[] packed = new byte[iv.length + encrypted.length];
         System.arraycopy(iv, 0, packed, 0, iv.length);
