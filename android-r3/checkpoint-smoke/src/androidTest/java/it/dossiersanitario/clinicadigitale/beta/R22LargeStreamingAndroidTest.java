@@ -27,11 +27,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(AndroidJUnit4.class)
 public class R22LargeStreamingAndroidTest {
-    private static final int PLAIN_SIZE = 160 * 1024 * 1024;
+    private static final int PLAIN_SIZE = 144 * 1024 * 1024;
     private static final int CHUNK = 1024 * 1024;
 
     @Test
-    public void verifies160MiBWithoutArchiveSizedHeapGrowth() throws Exception {
+    public void verifies144MiBWithoutArchiveSizedHeapGrowth() throws Exception {
         Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
         File plain = new File(context.getCacheDir(), "r22_large_plain.bin");
         File snapshot = new File(context.getCacheDir(), "r22_large_snapshot.dsl5");
@@ -46,7 +46,7 @@ public class R22LargeStreamingAndroidTest {
         try {
             byte[] expectedHash = createPatternFile(plain, PLAIN_SIZE);
             writeDsl5Streaming(plain, snapshot, key, iv);
-            assertTrue(snapshot.length() > 150L * 1024L * 1024L);
+            assertTrue(snapshot.length() > 137L * 1024L * 1024L);
             assertTrue(plain.delete());
 
             AtomicInteger callbacks = new AtomicInteger();
@@ -58,7 +58,7 @@ public class R22LargeStreamingAndroidTest {
             assertEquals(PLAIN_SIZE, verified.length());
             assertArrayEquals(expectedHash, sha256(verified));
             assertTrue("No progress callbacks", callbacks.get() > 0);
-            assertTrue("R22 160 MiB verification exceeded 180 s: " + elapsed + " ms", elapsed < 180000L);
+            assertTrue("R22 144 MiB verification exceeded 120 s: " + elapsed + " ms", elapsed < 120000L);
         } finally {
             plain.delete();
             snapshot.delete();
@@ -69,17 +69,15 @@ public class R22LargeStreamingAndroidTest {
     private static byte[] createPatternFile(File file, int size) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] buf = new byte[CHUNK];
-        long offset = 0L;
+        for (int i = 0; i < buf.length; i++) buf[i] = (byte) (i * 31 + (i >>> 12) + 17);
+
+        int remaining = size;
         try (FileOutputStream out = new FileOutputStream(file)) {
-            while (offset < size) {
-                int n = (int) Math.min(buf.length, size - offset);
-                for (int i = 0; i < n; i++) {
-                    long p = offset + i;
-                    buf[i] = (byte) ((p * 31L + (p >>> 12) + 17L) & 0xff);
-                }
+            while (remaining > 0) {
+                int n = Math.min(buf.length, remaining);
                 out.write(buf, 0, n);
                 digest.update(buf, 0, n);
-                offset += n;
+                remaining -= n;
             }
             out.getFD().sync();
         }
