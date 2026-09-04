@@ -16,6 +16,11 @@ public class R20CheckpointAndroidTest {
     @Test
     public void androidKeystoreCheckpointRoundTripWorksOnRealAndroidRuntime() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
+
+        String probe = "checkpoint-direct-probe-" + System.nanoTime();
+        String probePacked = R20CheckpointCrypto.protect(context, probe);
+        assertTrue(probePacked.startsWith("R20K1."));
+        assertEquals(probe, R20CheckpointCrypto.unprotect(context, probePacked));
         assertTrue(R20CheckpointCrypto.runtimeSelfTest(context));
 
         StringBuilder large = new StringBuilder(220_000);
