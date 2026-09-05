@@ -75,16 +75,17 @@ public class R27CompleteWindowsImportTest {
         String cloud = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java");
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
         assertTrue(cloud.contains("bootstrapR27ExactIfNeeded"));
+        assertTrue(cloud.contains("bootstrapR29ExactIfNeeded"));
         assertTrue(cloud.contains("currentSnapshot(activity, cfg)"));
         assertTrue(cloud.contains("R22StreamingDsl5.decryptVerified"));
         assertTrue(cloud.contains("R27ExactWindows.importSnapshot"));
-        assertTrue(main.contains("bootstrapR27ExactIfNeeded(this, prefs)"));
+        assertTrue(main.contains("bootstrapR29ExactIfNeeded("));
         assertTrue(main.contains("openAuthenticatedDossierR28(state)"));
     }
 
-    @Test public void exactWindowsFunctionalityContinuesInR28() throws Exception {
+    @Test public void exactWindowsFunctionalityContinuesInR29() throws Exception {
         String gradle = read("build.gradle");
-        assertTrue(gradle.contains("versionCode 28"));
-        assertTrue(gradle.contains("versionName '1.0.0-android-r28-startup-async-test'"));
+        assertTrue(gradle.contains("versionCode 29"));
+        assertTrue(gradle.contains("versionName '1.0.0-android-r29-progress-crashguard-test'"));
     }
 }
