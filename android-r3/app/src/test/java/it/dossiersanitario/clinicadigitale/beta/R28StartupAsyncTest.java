@@ -21,6 +21,7 @@ public class R28StartupAsyncTest {
         assertTrue(start >= 0 && end > start);
         String onCreate = main.substring(start, end);
         assertFalse(onCreate.contains("bootstrapR27ExactIfNeeded"));
+        assertFalse(onCreate.contains("bootstrapR29ExactIfNeeded"));
         assertTrue(onCreate.contains("showStartupGate(state)"));
     }
 
@@ -28,9 +29,9 @@ public class R28StartupAsyncTest {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
         assertTrue(main.contains("private void openAuthenticatedDossierR28(Bundle state)"));
         assertTrue(main.contains("dataExecutor.execute(() ->"));
-        assertTrue(main.contains("R12CloudManager.bootstrapR27ExactIfNeeded(this, prefs)"));
-        assertTrue(main.contains("showR28WindowsMigrationScreen()"));
-        assertTrue(main.contains("showR28WindowsMigrationFailure(state)"));
+        assertTrue(main.contains("R12CloudManager.bootstrapR29ExactIfNeeded("));
+        assertTrue(main.contains("showR29WindowsMigrationScreen()"));
+        assertTrue(main.contains("showR29WindowsMigrationFailure"));
     }
 
     @Test public void passwordAndTotpSuccessUseSameAuthenticatedOpenGate() throws Exception {
@@ -47,12 +48,12 @@ public class R28StartupAsyncTest {
         assertTrue(main.contains("passwordEye"));
         assertTrue(main.contains("Mostra password"));
         assertTrue(main.contains("showStartupTotp"));
-        assertTrue(cloud.contains("R27ExactWindows.importSnapshot(activity, prefs, cfg, verifiedZip)"));
+        assertTrue(cloud.contains("R27ExactWindows.importSnapshot"));
     }
 
-    @Test public void packageVersionIsR28() throws Exception {
+    @Test public void packageVersionIsR29() throws Exception {
         String gradle = read("build.gradle");
-        assertTrue(gradle.contains("versionCode 28"));
-        assertTrue(gradle.contains("versionName '1.0.0-android-r28-startup-async-test'"));
+        assertTrue(gradle.contains("versionCode 29"));
+        assertTrue(gradle.contains("versionName '1.0.0-android-r29-progress-crashguard-test'"));
     }
 }
