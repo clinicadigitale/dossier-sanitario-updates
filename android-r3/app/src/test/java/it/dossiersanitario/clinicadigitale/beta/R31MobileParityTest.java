@@ -14,11 +14,26 @@ public class R31MobileParityTest {
         return new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
     }
 
+    private String methodBlock(String source, String signature) {
+        int start = source.indexOf(signature);
+        assertTrue("Metodo non trovato: " + signature, start >= 0);
+        int brace = source.indexOf('{', start);
+        assertTrue("Corpo metodo non trovato: " + signature, brace >= 0);
+        int depth = 0;
+        for (int i = brace; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}') {
+                depth--;
+                if (depth == 0) return source.substring(start, i + 1);
+            }
+        }
+        throw new AssertionError("Metodo non chiuso: " + signature);
+    }
+
     @Test public void homeHasExplicitProfileSwitcherAndNoReleaseNoticeCall() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        int a = main.indexOf("private void renderPanoramica()");
-        int b = main.indexOf("private void renderDatiProfilo()", a);
-        String method = main.substring(a, b);
+        String method = methodBlock(main, "private void renderPanoramica()");
         assertTrue(method.contains("Cambia utente / profilo"));
         assertTrue(method.contains("showR27ProfilePicker()"));
         assertFalse(method.contains("addReleaseNotice()"));
@@ -87,9 +102,7 @@ public class R31MobileParityTest {
 
     @Test public void compareStartsWithSelectorAndOnlyRendersChosenValue() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        int a = main.indexOf("private void renderConfronta()");
-        int b = main.indexOf("private void renderGrafici()", a);
-        String method = main.substring(a, b);
+        String method = methodBlock(main, "private void renderConfronta()");
         assertTrue(method.contains("Seleziona valore da confrontare"));
         assertTrue(method.contains("r31RenderSelectedComparison"));
         assertFalse(method.contains("r27Comparison(\"Peso\""));
@@ -97,9 +110,7 @@ public class R31MobileParityTest {
 
     @Test public void graphsStartWithSelectorAndOnlyOpenChosenGraph() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        int a = main.indexOf("private void renderGrafici()");
-        int b = main.indexOf("private void renderAgenda()", a);
-        String method = main.substring(a, b);
+        String method = methodBlock(main, "private void renderGrafici()");
         assertTrue(method.contains("Seleziona valore da visualizzare"));
         assertTrue(method.contains("r31RenderSelectedGraph"));
         assertFalse(method.contains("r27Chart(\"Percorso peso\""));
@@ -128,14 +139,13 @@ public class R31MobileParityTest {
 
     @Test public void preferencesAreEditableAndProfileSwitcherIsNotInNewPreferences() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        int a = main.indexOf("private void renderPreferenze()");
-        int b = main.indexOf("private void renderBackup()", a);
-        String block = main.substring(a, b);
-        assertTrue(block.contains("Modifica preferenze generali"));
-        assertTrue(block.contains("Modifica preferenze del profilo"));
-        assertTrue(block.contains("Colore del programma"));
-        assertTrue(block.contains("Frequenza backup"));
-        assertFalse(block.substring(0, block.indexOf("private void r31SelectClinicalValue")).contains("Profili disponibili e colori"));
+        String method = methodBlock(main, "private void renderPreferenze()");
+        assertTrue(method.contains("Modifica preferenze generali"));
+        assertTrue(method.contains("Modifica preferenze del profilo"));
+        assertTrue(method.contains("Colore del programma"));
+        assertTrue(method.contains("Frequenza backup"));
+        assertFalse(method.contains("Profili disponibili e colori"));
+        assertFalse(method.contains("showR27ProfilePicker"));
     }
 
     @Test public void helpContainsAllTwentySixWindowsTopics() throws Exception {
