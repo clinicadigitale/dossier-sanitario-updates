@@ -91,9 +91,9 @@ public class R26NearFinalTest {
         assertTrue(main.contains("R12Crypto.protectSecret(this, password)"));
     }
 
-    @Test public void packageIdentityContinuesInR28() throws Exception {
+    @Test public void packageIdentityContinuesInR29() throws Exception {
         String gradle = read("build.gradle");
-        assertTrue(gradle.contains("versionCode 28"));
-        assertTrue(gradle.contains("versionName '1.0.0-android-r28-startup-async-test'"));
+        assertTrue(gradle.contains("versionCode 29"));
+        assertTrue(gradle.contains("versionName '1.0.0-android-r29-progress-crashguard-test'"));
     }
 }
