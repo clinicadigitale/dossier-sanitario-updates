@@ -32,6 +32,20 @@ s = s.replace('String helper = block(main, "private JSONArray r32ClinicalTimelin
 s = s.replace('assertTrue(helper.contains("Pressione sistolica"));\n        assertTrue(helper.contains("Pressione diastolica"));\n        assertTrue(helper.contains("Frequenza cardiaca"));',
 '''assertTrue(helper.contains("new R33PressureChartView"));
         assertTrue(helper.contains("Frequenza cardiaca"));''')
+old_weight = '''        String method = block(main, "private void r31RenderMonitorDetail(String type,String label)");
+        assertTrue(method.contains("Storico pesate"));
+        assertTrue(method.contains("line.setOrientation(LinearLayout.HORIZONTAL)"));
+        assertTrue(method.contains("dp(40)"));
+        assertTrue(method.contains("return;"));'''
+new_weight = '''        String method = block(main, "private void r31RenderMonitorDetail(String type,String label)");
+        assertTrue(method.contains("r33RenderWeightDetail()"));
+        String history = block(main, "private void r33RenderWeightHistory(JSONArray rows,boolean oldestFirst,JSONObject journey)");
+        assertTrue(history.contains("Storico pesate"));
+        assertTrue(history.contains("Diff. precedente"));
+        assertTrue(history.contains("Diff. iniziale"));'''
+if old_weight not in s:
+    raise SystemExit('R33 compatibility failed: R32 weight-history assertion block missing')
+s = s.replace(old_weight, new_weight, 1)
 s = s.replace('versionIsR32OrderingMonitorTest', 'versionIsR33SuccessorBuild')
 p.write_text(s, encoding='utf-8')
 
