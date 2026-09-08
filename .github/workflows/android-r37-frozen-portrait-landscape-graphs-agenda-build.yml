@@ -70,6 +70,16 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          def block(source, signature):
+              start = source.index(signature)
+              brace = source.index('{', start)
+              depth = 0
+              for i in range(brace, len(source)):
+                  if source[i] == '{': depth += 1
+                  elif source[i] == '}':
+                      depth -= 1
+                      if depth == 0: return source[start:i+1]
+              raise AssertionError(signature)
           main = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java').read_text(encoding='utf-8')
           cloud = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java').read_text(encoding='utf-8')
           clinical = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R37ClinicalSeries.java').read_text(encoding='utf-8')
@@ -79,10 +89,9 @@ jobs:
           assert 'Math.max(dp(280), Math.min(dp(320)' in main
           assert 'labelView.setSingleLine(true)' in main
           assert 'int r36ContentSide = r36Landscape() ? dp(12) : dp(16)' in main
-          agenda_start = main.index('private void renderAgenda')
-          agenda_end = main.index('private boolean r36AgendaDocumentEligible', agenda_start)
-          agenda = main[agenda_start:agenda_end]
+          agenda = block(main, 'private void renderAgenda')
           assert 'labelValue("Avvisi"' not in agenda
+          assert 'optJSONArray("reminders")' not in agenda
           assert 'Apri documento originale' in agenda
           assert 'R37ClinicalSeries.availableLabParameters' in main
           assert 'R37ClinicalSeries.labSeries' in main
@@ -92,9 +101,7 @@ jobs:
           assert 'glicem' in clinical and 'glucos' in clinical and 'glucose' in clinical
           assert 'r36RefreshLatestCommittedSnapshot' in cloud
           assert 'R25ZipEntryReader.readEntry(zip)' in cloud
-          chooser_start = main.index('private void r34ShowSecondFactor')
-          chooser_end = main.index('private void r34AuthenticateBiometricForAccount', chooser_start)
-          chooser = main[chooser_start:chooser_end]
+          chooser = block(main, 'private void r34ShowSecondFactor')
           assert 'setPositiveButton("Biometria del dispositivo"' in chooser
           assert 'setNeutralButton("Codice TOTP"' in chooser
           assert 'BiometricPrompt.Builder' in bio
