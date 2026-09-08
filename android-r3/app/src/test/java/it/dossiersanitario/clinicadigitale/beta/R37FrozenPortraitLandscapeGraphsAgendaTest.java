@@ -52,7 +52,7 @@ public class R37FrozenPortraitLandscapeGraphsAgendaTest {
 
     @Test public void agendaNormalCardsDoNotShowReminderTiming() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        String agenda = block(main, "private void renderAgenda");
+        String agenda = block(main, "private void renderAgenda() {");
         assertFalse(agenda.contains("labelValue(\"Avvisi\""));
         assertFalse(agenda.contains("optJSONArray(\"reminders\")"));
         assertTrue(agenda.contains("Apri documento originale"));
