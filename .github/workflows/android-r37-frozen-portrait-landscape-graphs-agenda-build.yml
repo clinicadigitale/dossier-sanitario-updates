@@ -89,7 +89,7 @@ jobs:
           assert 'Math.max(dp(280), Math.min(dp(320)' in main
           assert 'labelView.setSingleLine(true)' in main
           assert 'int r36ContentSide = r36Landscape() ? dp(12) : dp(16)' in main
-          agenda = block(main, 'private void renderAgenda')
+          agenda = block(main, 'private void renderAgenda() {')
           assert 'labelValue("Avvisi"' not in agenda
           assert 'optJSONArray("reminders")' not in agenda
           assert 'Apri documento originale' in agenda
