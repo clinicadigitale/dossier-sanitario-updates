@@ -8,13 +8,15 @@ for p in TEST.glob('R*Test.java'):
     s = s.replace('versionIsR36SuccessorBuild', 'versionIsR37SuccessorBuild')
     s = s.replace('versionIsR36', 'versionIsR37SuccessorBuild')
 
-    # R37 deliberately supersedes the R36 landscape column widths and report-series helper.
+    # R37 deliberately supersedes only the R36 landscape widths/padding and report-series helper.
     if p.name == 'R36SyncResponsiveGraphsAgendaRemindersTest.java':
         s = s.replace('screenWidth * 0.34f', 'screenWidth * 0.46f')
         s = s.replace('assertTrue(label.contains("dp(160)"));', 'assertTrue(label.contains("dp(280)"));')
         s = s.replace('assertTrue(label.contains("dp(270)"));', 'assertTrue(label.contains("dp(320)"));')
+        s = s.replace('r36ContentSide = r36Landscape() ? dp(24) : dp(16)', 'r36ContentSide = r36Landscape() ? dp(12) : dp(16)')
         s = s.replace('R36ClinicalSeries.availableLabParameters', 'R37ClinicalSeries.availableLabParameters')
         s = s.replace('R36ClinicalSeries.labSeries', 'R37ClinicalSeries.labSeries')
+        s = s.replace('assertTrue(series.contains("findParameterByName(prefs, \\"glicem\\")"));', 'assertTrue(series.contains("R37ClinicalSeries.glycemiaFromReports"));')
 
     p.write_text(s, encoding='utf-8')
 print('R37 prior regression assertions aligned only where R37 intentionally supersedes R36')
