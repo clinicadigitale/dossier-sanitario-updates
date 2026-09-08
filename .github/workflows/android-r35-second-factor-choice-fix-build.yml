@@ -73,7 +73,7 @@ jobs:
           start = main.index('private void r34ShowSecondFactor')
           end = main.index('private void r34AuthenticateBiometricForAccount', start)
           chooser = main[start:end]
-          assert 'setPositiveButton("Biometria"' in chooser
+          assert 'setPositiveButton("Biometria del dispositivo"' in chooser
           assert 'setNeutralButton("Codice TOTP"' in chooser
           assert 'setNegativeButton("Esci"' in chooser
           assert 'setItems(' not in chooser
