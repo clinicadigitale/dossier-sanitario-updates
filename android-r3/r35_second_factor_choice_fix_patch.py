@@ -56,9 +56,6 @@ chooser = r'''    private void r34ShowSecondFactor(Bundle state, JSONObject acco
             return;
         }
 
-        // R34 used setMessage together with setItems. On Android's AlertDialog the
-        // message panel can replace the list panel, leaving only the Exit button.
-        // R35 uses real dialog buttons so both methods remain visible on device.
         AlertDialog.Builder builder = new AlertDialog.Builder(this)
                 .setTitle("Scegli il metodo di verifica")
                 .setMessage("Scegli come completare l'accesso al Dossier.")
@@ -66,7 +63,7 @@ chooser = r'''    private void r34ShowSecondFactor(Bundle state, JSONObject acco
                 .setCancelable(false);
 
         if (biometric) {
-            builder.setPositiveButton("Biometria", (d,w) ->
+            builder.setPositiveButton("Biometria del dispositivo", (d,w) ->
                     r34AuthenticateBiometricForAccount(state, account, password));
         }
         if (totp) {
