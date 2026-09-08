@@ -1,4 +1,8 @@
 from pathlib import Path
+import runpy
+
+# Final source-placement gate after all R36 source transformations.
+runpy.run_path('android-r3/r36_agenda_ci_fix.py', run_name='__main__')
 
 TEST = Path('android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta')
 for p in TEST.glob('R*Test.java'):
