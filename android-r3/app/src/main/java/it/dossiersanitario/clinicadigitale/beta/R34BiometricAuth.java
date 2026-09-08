@@ -58,8 +58,7 @@ final class R34BiometricAuth {
 
             @Override public void onAuthenticationError(int errorCode, CharSequence errString) {
                 if (fallbackUsed.get()) return;
-                if (errorCode == BiometricPrompt.BIOMETRIC_ERROR_NEGATIVE_BUTTON
-                        || errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
+                if (errorCode == BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED
                         || errorCode == BiometricPrompt.BIOMETRIC_ERROR_CANCELED) {
                     return;
                 }
