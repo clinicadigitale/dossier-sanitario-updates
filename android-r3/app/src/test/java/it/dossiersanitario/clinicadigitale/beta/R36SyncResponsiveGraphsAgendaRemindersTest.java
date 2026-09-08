@@ -91,9 +91,12 @@ public class R36SyncResponsiveGraphsAgendaRemindersTest {
 
     @Test public void agendaOriginalButtonExistsOnlyForDocumentDerivedVisitsAndExams() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        String agenda = block(main, "private void renderAgenda");
-        assertTrue(agenda.contains("Apri documento originale"));
-        assertTrue(agenda.contains("r36AgendaSourceDocument"));
+        int agendaStart = main.indexOf("private void renderAgenda()");
+        int button = main.indexOf("Apri documento originale", agendaStart);
+        int sourceHelper = main.indexOf("private JSONObject r36AgendaSourceDocument", agendaStart);
+        assertTrue("renderAgenda non trovato", agendaStart >= 0);
+        assertTrue("pulsante documento originale assente da Agenda", button > agendaStart);
+        assertTrue("pulsante Agenda non collocato prima dell'helper sorgente", sourceHelper > button);
         String eligible = block(main, "private boolean r36AgendaDocumentEligible");
         assertTrue(eligible.contains("farmac"));
         assertTrue(eligible.contains("telefon"));
