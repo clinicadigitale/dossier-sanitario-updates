@@ -34,7 +34,7 @@ public class R35SecondFactorChoiceFixTest {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
         String chooser = block(main, "private void r34ShowSecondFactor");
         assertTrue(chooser.contains("Scegli il metodo di verifica"));
-        assertTrue(chooser.contains("setPositiveButton(\"Biometria\""));
+        assertTrue(chooser.contains("setPositiveButton(\"Biometria del dispositivo\""));
         assertTrue(chooser.contains("setNeutralButton(\"Codice TOTP\""));
         assertTrue(chooser.contains("setNegativeButton(\"Esci\""));
         assertFalse(chooser.contains("setItems("));
