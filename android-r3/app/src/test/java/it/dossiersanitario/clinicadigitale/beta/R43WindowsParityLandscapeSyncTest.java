@@ -35,8 +35,8 @@ public class R43WindowsParityLandscapeSyncTest {
         if (root.endsWith("app")) root = root.getParent();
         Path cloud = root.resolve("app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java");
         Path rclone = root.resolve("app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Rclone.java");
-        String c = Files.readString(cloud, StandardCharsets.UTF_8);
-        String r = Files.readString(rclone, StandardCharsets.UTF_8);
+        String c = new String(Files.readAllBytes(cloud), StandardCharsets.UTF_8);
+        String r = new String(Files.readAllBytes(rclone), StandardCharsets.UTF_8);
         assertTrue(c.contains("verifyArchiveManifestR43"));
         assertTrue(c.contains("lsJsonBounded(context, snapshotsRoot, false, 60L)"));
         assertTrue(c.contains("Nessuna copia Windows committed trovata"));
