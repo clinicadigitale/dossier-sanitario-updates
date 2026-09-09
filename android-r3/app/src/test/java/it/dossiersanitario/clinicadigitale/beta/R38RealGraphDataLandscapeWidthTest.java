@@ -43,7 +43,7 @@ public class R38RealGraphDataLandscapeWidthTest {
         String label = block(main, "private LinearLayout labelValue");
         assertTrue(label.contains("0.48f"));
         assertTrue(label.contains("0.52f"));
-        assertTrue(label.contains("labelView.setMaxLines(3)"));
+        assertTrue(label.contains("labelView.setSingleLine(true)"));
         assertFalse(label.contains("Math.max(dp(280)"));
         assertFalse(label.contains("screenWidth * 0.46f"));
     }
