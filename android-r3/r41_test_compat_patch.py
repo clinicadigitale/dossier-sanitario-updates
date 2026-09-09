@@ -5,6 +5,25 @@ exec((Path('android-r3') / 'r41_chart_unit_fix.py').read_text(encoding='utf-8'))
 
 TEST = Path('android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta')
 
+
+def replace_java_method(source, signature, replacement):
+    start = source.find(signature)
+    if start < 0:
+        raise SystemExit('Missing predecessor test method: ' + signature)
+    brace = source.find('{', start)
+    depth = 0
+    end = -1
+    for i in range(brace, len(source)):
+        if source[i] == '{': depth += 1
+        elif source[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end < 0:
+        raise SystemExit('Unclosed predecessor test method: ' + signature)
+    return source[:start] + replacement + source[end:]
+
 # Version assertions from predecessor tests follow the installed successor identity.
 for p in TEST.glob('R*Test.java'):
     if p.name == 'R41RealDeviceFinalFixTest.java':
@@ -25,17 +44,24 @@ for p in TEST.glob('R*Test.java'):
     s = s.replace('versionIsR40', 'versionIsR41Successor')
     p.write_text(s, encoding='utf-8')
 
-# R36: its historical fixed landscape widths were superseded. Preserve the real
-# invariant: landscape detection, one-line first column, global label/value path,
-# portrait geometry, and contact behavior.
+# R36's old fixed-width implementation is fully superseded. Replace only that
+# predecessor method with the actual R41 invariant; the dedicated R41 test adds
+# specific emergency-section coverage.
 p = TEST / 'R36SyncResponsiveGraphsAgendaRemindersTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
-    s = s.replace('assertTrue(label.contains("screenWidth * 0.34f"));', 'assertTrue(label.contains("0.48f"));')
-    s = s.replace('assertTrue(label.contains("dp(160)"));', 'assertTrue(label.contains("0.52f"));')
-    s = s.replace('assertTrue(label.contains("dp(270)"));', 'assertTrue(label.contains("labelView.setSingleLine(true)"));')
-    # Content-side margin was intentionally changed by later responsive revisions.
-    s = s.replace('assertTrue(main.contains("r36ContentSide = r36Landscape() ? dp(24) : dp(16)"));', 'assertTrue(label.contains("dp(92)"));')
+    replacement = '''public void landscapeUsesWiderResponsiveLabelColumnsAcrossAllLabelValueSections() throws Exception {
+        String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
+        String label = block(main, "private LinearLayout labelValue");
+        assertTrue(label.contains("boolean landscape = r36Landscape()"));
+        assertTrue(label.contains("labelView.setSingleLine(true)"));
+        assertTrue(label.contains("labelView.setMaxLines(1)"));
+        assertTrue(label.contains("0.48f"));
+        assertTrue(label.contains("0.52f"));
+        assertTrue(label.contains("dp(92)"));
+        assertTrue(label.contains("r34MakeContactAction"));
+    }'''
+    s = replace_java_method(s, 'public void landscapeUsesWiderResponsiveLabelColumnsAcrossAllLabelValueSections()', replacement)
     p.write_text(s, encoding='utf-8')
 
 # R37/R38/R39/R40: replace superseded concrete width implementations with R41's
@@ -71,8 +97,7 @@ for name in [
         s = s.replace(old, new)
     p.write_text(s, encoding='utf-8')
 
-# R38/R39 graph scale now includes the imported report reference interval when
-# present. Strict requested-key behavior remains unchanged.
+# R38/R39 graph scale now includes the imported report reference interval when present.
 for name in ['R38GraphScaleLandscapeWidthTest.java', 'R39ExactLabsLandscapeSyncProgressV3Test.java']:
     p = TEST / name
     if p.exists():
@@ -81,8 +106,7 @@ for name in ['R38GraphScaleLandscapeWidthTest.java', 'R39ExactLabsLandscapeSyncP
                       'assertTrue(chart.contains("scaledBoundsWithReference(dataMin, dataMax, referenceLow, referenceHigh)"));')
         p.write_text(s, encoding='utf-8')
 
-# R39 sync implementation has been superseded by R41. Its old wrapper now routes
-# to the active implementation, so verify R41 itself rather than the dead body.
+# R39 sync implementation has been superseded by the active R41 implementation.
 p = TEST / 'R39ExactLabsLandscapeSyncProgressV3Test.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
@@ -105,8 +129,7 @@ if p.exists():
     s = s.replace(old, new)
     p.write_text(s, encoding='utf-8')
 
-# R40 predecessor assertions: active sync is R41; date axis is now a full dynamic
-# year-axis rather than only two endpoint labels.
+# R40 predecessor assertions: active sync is R41; date axis is now a full dynamic year-axis.
 p = TEST / 'R40GlobalParityFixTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
