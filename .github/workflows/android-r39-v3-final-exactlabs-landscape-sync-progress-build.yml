@@ -70,6 +70,7 @@ jobs:
           python android-r3/r39_landscape_exactlabs_sync_progress_patch_v2.py
           python android-r3/r39_exactlabs_selector_sync_progress_patch_v3.py
           python android-r3/r39_test_compat_patch_v3.py
+          python android-r3/r39_test_compat_patch_v4.py
 
       - name: Set up Java
         uses: actions/setup-java@v5
