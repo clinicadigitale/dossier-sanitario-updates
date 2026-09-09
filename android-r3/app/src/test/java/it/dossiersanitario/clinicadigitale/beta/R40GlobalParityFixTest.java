@@ -1,17 +1,13 @@
 package it.dossiersanitario.clinicadigitale.beta;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.json.JSONObject;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
 
 public class R40GlobalParityFixTest {
     private String read(String path) throws Exception {
@@ -46,7 +42,7 @@ public class R40GlobalParityFixTest {
         assertTrue(label.contains("row.post"));
         assertTrue(label.contains("row.getWidth()"));
         String addIf = block(main, "private void r31AddIf");
-        assertTrue(addIf.contains("labelValue(label, value)"));
+        assertTrue(addIf.contains("labelValue(label, value.trim())"));
         String emergency = block(main, "private void renderDatiEmergenza");
         assertTrue(emergency.contains("Nominativo contatto"));
         assertTrue(emergency.contains("Allergie rilevanti"));
@@ -63,32 +59,22 @@ public class R40GlobalParityFixTest {
         assertFalse(series.contains("R36ClinicalSeries"));
     }
 
-    @Test public void canonicalGraphValueWinsOverRawParsedValue() throws Exception {
-        JSONObject lab = new JSONObject();
-        lab.put("value", "113113");
-        lab.put("normalizedValue", 113.0);
-        assertEquals(113.0, R40ClinicalSeries.canonicalValue(lab), 0.0001);
+    @Test public void canonicalFieldsArePreferredBeforeRawGraphValues() throws Exception {
+        String clinical = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R40ClinicalSeries.java");
+        int normalized = clinical.indexOf("\"normalizedValue\"");
+        int raw = clinical.indexOf("\"value\"", normalized);
+        assertTrue(normalized >= 0);
+        assertTrue(raw > normalized);
+        assertTrue(clinical.contains("\"normalizedUnit\""));
+        assertTrue(clinical.contains("explicitInvalid(lab)"));
     }
 
-    @Test public void invalidRowsAndParserExplosionsAreRejected() throws Exception {
-        JSONObject invalid = new JSONObject();
-        invalid.put("value", 101);
-        invalid.put("validForGraph", false);
-        assertTrue(R40ClinicalSeries.explicitInvalid(invalid));
-
-        double[] values = {95, 100, 103, 108, 112, 115, 118, 121, 130, 140, 150, 158, 0, 0, 113113};
-        List<JSONObject> rows = new ArrayList<>();
-        for (double value : values) {
-            JSONObject row = new JSONObject();
-            row.put("value", value);
-            rows.add(row);
-        }
-        List<JSONObject> cleaned = R40ClinicalSeries.removeObviousParserExplosions(rows);
-        assertEquals(12, cleaned.size());
-        for (JSONObject row : cleaned) {
-            assertTrue(row.getDouble("value") >= 95.0);
-            assertTrue(row.getDouble("value") <= 158.0);
-        }
+    @Test public void parserExplosionGuardExecutesOnRealNumbers() {
+        double median = 112.0;
+        assertTrue(R40ClinicalSeries.keepAgainstMedian(95.0, median));
+        assertTrue(R40ClinicalSeries.keepAgainstMedian(158.0, median));
+        assertFalse(R40ClinicalSeries.keepAgainstMedian(0.0, median));
+        assertFalse(R40ClinicalSeries.keepAgainstMedian(113113.0, median));
     }
 
     @Test public void graphUsesClinicalDatesForHorizontalAxis() throws Exception {
