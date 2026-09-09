@@ -45,8 +45,7 @@ label_value = r'''    private LinearLayout labelValue(String label, String value
         r34MakeContactAction(valueView, label, value);
 
         if (landscape) {
-            labelView.setSingleLine(false);
-            labelView.setMaxLines(3);
+            labelView.setSingleLine(true);
             row.addView(labelView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.48f));
             row.addView(valueView, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 0.52f));
         } else {
