@@ -40,7 +40,12 @@ public class R43WindowsParityLandscapeSyncTest {
         assertTrue(c.contains("verifyArchiveManifestR43"));
         assertTrue(c.contains("lsJsonBounded(context, snapshotsRoot, false, 60L)"));
         assertTrue(c.contains("Nessuna copia Windows committed trovata"));
-        assertFalse(c.contains("snapshotWarning = r42SyncMessage(snapshotError)"));
+        int r43 = c.indexOf("public static void syncInteractiveR43");
+        int r42 = c.indexOf("public static void syncInteractiveR42", r43);
+        assertTrue(r43 >= 0 && r42 > r43);
+        String active = c.substring(r43, r42);
+        assertFalse(active.contains("snapshotWarning"));
+        assertTrue(active.contains("verifyArchiveManifestR43"));
         assertTrue(r.contains("runBounded(Context context, List<String> args, long timeoutSeconds)"));
         assertTrue(r.contains("process.waitFor(Math.max(10L, timeoutSeconds), TimeUnit.SECONDS)"));
     }
