@@ -1,5 +1,8 @@
 from pathlib import Path
 
+# Apply the final R41 chart-unit correction as part of the R41 patch chain.
+exec((Path('android-r3') / 'r41_chart_unit_fix.py').read_text(encoding='utf-8'))
+
 TEST = Path('android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta')
 
 # Version assertions from successor tests must follow the installed build identity.
