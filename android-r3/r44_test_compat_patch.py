@@ -28,6 +28,45 @@ for p in TEST.glob('R*Test.java'):
     s = s.replace('assertTrue(main.contains("R43LayoutGeometry.landscapeLabelWidthPx"));', 'assertTrue(main.contains("0.30f"));')
     p.write_text(s, encoding='utf-8')
 
+# Replace only historical landscape geometry tests that are intentionally superseded by
+# the user's explicit R44 requirement: 30% label column, 70% value column, portrait 92dp.
+def replace_test_method(path, method_name):
+    p = TEST / path
+    if not p.exists(): return
+    s = p.read_text(encoding='utf-8')
+    marker = '@Test public void ' + method_name
+    start = s.find(marker)
+    if start < 0: return
+    line_start = s.rfind('\n', 0, start) + 1
+    brace = s.find('{', start)
+    depth = 0
+    end = -1
+    for i in range(brace, len(s)):
+        if s[i] == '{': depth += 1
+        elif s[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end < 0: raise SystemExit('Unclosed historical test ' + method_name)
+    replacement = '''    @Test public void %s() throws Exception {\n        String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");\n        String label = block(main, "private LinearLayout labelValue");\n        assertTrue(label.contains("r36Landscape()"));\n        assertTrue(label.contains("0.30f"));\n        assertTrue(label.contains("0.70f"));\n        assertTrue(label.contains("dp(92)"));\n        assertTrue(label.contains("labelView.setSingleLine(true)"));\n        assertTrue(main.contains("onConfigurationChanged(Configuration newConfig)"));\n        assertTrue(main.contains("renderSection(currentSection)"));\n    }''' % method_name
+    s = s[:line_start] + replacement + s[end:]
+    p.write_text(s, encoding='utf-8')
+
+historical_landscape_tests = {
+    'R36SyncResponsiveGraphsAgendaRemindersTest.java': ['landscapeUsesWiderResponsiveLabelColumnsAcrossAllLabelValueSections'],
+    'R37FrozenPortraitLandscapeGraphsAgendaTest.java': ['portraitLabelGeometryIsRestoredToFrozenR34R35Baseline','landscapeLabelColumnIsAlmostDoubleAndSingleLine'],
+    'R38GraphScaleLandscapeWidthTest.java': ['landscapeColumnIsReallyWiderWhilePortraitStaysFrozen'],
+    'R39ExactLabsLandscapeSyncProgressV2Test.java': ['landscapeOnlyUsesWideSingleLineFirstColumn'],
+    'R39ExactLabsLandscapeSyncProgressV3Test.java': ['portraitFrozenLandscapeWideSingleLine'],
+    'R39LandscapeLabSeriesSyncProgressTest.java': ['portraitRemainsFrozenAndLandscapeLabelsAreOneLine'],
+    'R40GlobalParityFixTest.java': ['everyStandardSectionRowUsesOneGlobalLandscapeRuleAndPortraitStaysFrozen'],
+    'R41RealDeviceFinalFixTest.java': ['landscapeRuleIsGlobalWeightBasedAndPortraitRemains92dp'],
+    'R42RealDeviceLandscapeGraphSyncFixTest.java': ['emergencyAndEveryStandardRowActuallyFillLandscapeCardWidth'],
+}
+for file_name, methods in historical_landscape_tests.items():
+    for method in methods: replace_test_method(file_name, method)
+
 p = TEST / 'R42RealDeviceLandscapeGraphSyncFixTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
@@ -45,21 +84,16 @@ if p.exists():
     s = s.replace('chartUsesEvenWindowsLikeObservationSpacing', 'chartKeepsInclinedDatesAndFallbackSpacing')
     p.write_text(s, encoding='utf-8')
 
-# R43 already introduced these helpers. R44 replaces drawYearAxis with a block that
-# includes the successor implementations, so remove only duplicate later definitions.
 CHART = ROOT / 'app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java'
 cs = CHART.read_text(encoding='utf-8')
 
 def remove_second_block(text, signature):
     first = text.find(signature)
-    if first < 0:
-        return text
+    if first < 0: return text
     second = text.find(signature, first + len(signature))
-    if second < 0:
-        return text
+    if second < 0: return text
     brace = text.find('{', second)
-    if brace < 0:
-        return text
+    if brace < 0: return text
     depth = 0
     end = -1
     for i in range(brace, len(text)):
@@ -69,10 +103,8 @@ def remove_second_block(text, signature):
             if depth == 0:
                 end = i + 1
                 break
-    if end < 0:
-        return text
-    while end < len(text) and text[end] in '\r\n':
-        end += 1
+    if end < 0: return text
+    while end < len(text) and text[end] in '\r\n': end += 1
     return text[:second] + text[end:]
 
 for sig in [
