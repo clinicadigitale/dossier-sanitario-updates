@@ -4,7 +4,6 @@ import static org.junit.Assert.*;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import org.junit.Test;
@@ -67,7 +66,7 @@ public class R44RealDeviceParitySyncTest {
 
     @Test public void versionIsR44() throws Exception {
         String gradle = read("build.gradle");
-        assertTrue(gradle.contains("versionCode 44"));
+        assertTrue(gradle.matches("(?s).*versionCode\\s*(?:=\\s*)?44.*"));
         assertTrue(gradle.contains("1.0.0-android-r44-realdevice-parity-sync-test"));
     }
 }
