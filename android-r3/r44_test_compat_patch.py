@@ -8,12 +8,12 @@ R44_NAME = '1.0.0-android-r44-realdevice-parity-sync-test'
 
 g = GRADLE.read_text(encoding='utf-8')
 g = re.sub(r'versionCode\s+\d+', 'versionCode 44', g, count=1)
-g = re.sub(r'versionName\s+[\"\'][^\"\']+[\"\']', f'versionName "{R44_NAME}"', g, count=1)
+g = re.sub(r'versionName\s+(?:=\s*)?[\"\'][^\"\']+[\"\']', f'versionName "{R44_NAME}"', g, count=1)
 GRADLE.write_text(g, encoding='utf-8')
 
+# R43 compatibility runs before this file and necessarily sees the already-present R44
+# regression class. Normalize every test, including R44 itself, back to the final identity.
 for p in TEST.glob('R*Test.java'):
-    if p.name == 'R44RealDeviceParitySyncTest.java':
-        continue
     s = p.read_text(encoding='utf-8')
     for n in range(17, 45):
         s = s.replace(f'versionCode {n}', 'versionCode 44')
@@ -28,8 +28,6 @@ for p in TEST.glob('R*Test.java'):
     s = s.replace('assertTrue(main.contains("R43LayoutGeometry.landscapeLabelWidthPx"));', 'assertTrue(main.contains("0.30f"));')
     p.write_text(s, encoding='utf-8')
 
-# Replace only historical landscape geometry tests that are intentionally superseded by
-# the user's explicit R44 requirement: 30% label column, 70% value column, portrait 92dp.
 def replace_test_method(path, method_name):
     p = TEST / path
     if not p.exists(): return
