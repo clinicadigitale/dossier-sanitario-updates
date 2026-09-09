@@ -30,11 +30,6 @@ def replace_block(text, signature, replacement, label=None):
     return text[:start] + replacement.rstrip() + '\n' + text[end:]
 
 
-# ---------------------------------------------------------------------------
-# 1. Generic clinical chart: use the requested data field only, parse numbers
-#    with units/decimal commas robustly, and scale the Y axis to the REAL range.
-#    The old fixed 0.5 margin could visually flatten small but real variations.
-# ---------------------------------------------------------------------------
 chart = r'''package it.dossiersanitario.clinicadigitale.beta;
 
 import android.content.Context;
@@ -91,17 +86,21 @@ final class R26ChartView extends View {
         }
     }
 
+    static double parseRequestedRaw(Object raw) {
+        if (raw == null || raw == JSONObject.NULL) return Double.NaN;
+        if (raw instanceof Number) return ((Number) raw).doubleValue();
+        Matcher matcher = NUMBER.matcher(String.valueOf(raw).trim());
+        if (!matcher.find()) return Double.NaN;
+        try { return Double.parseDouble(matcher.group().replace(',', '.')); }
+        catch (Exception ignored) { return Double.NaN; }
+    }
+
     static double requestedValue(JSONObject o, String... preferredKeys) {
         if (o == null || preferredKeys == null || preferredKeys.length == 0) return Double.NaN;
         for (String key : preferredKeys) {
             if (key == null || key.trim().isEmpty() || !o.has(key)) continue;
-            Object raw = o.opt(key);
-            if (raw instanceof Number) return ((Number) raw).doubleValue();
-            if (raw == null || raw == JSONObject.NULL) continue;
-            Matcher matcher = NUMBER.matcher(String.valueOf(raw).trim());
-            if (!matcher.find()) continue;
-            try { return Double.parseDouble(matcher.group().replace(',', '.')); }
-            catch (Exception ignored) {}
+            double parsed = parseRequestedRaw(o.opt(key));
+            if (!Double.isNaN(parsed)) return parsed;
         }
         return Double.NaN;
     }
@@ -169,10 +168,6 @@ final class R26ChartView extends View {
 '''
 CHART.write_text(chart, encoding='utf-8')
 
-# ---------------------------------------------------------------------------
-# 2. Landscape first label column: R37's cap was still too narrow on the real
-#    Xiaomi. Portrait remains exactly frozen at 92 dp.
-# ---------------------------------------------------------------------------
 s = MAIN.read_text(encoding='utf-8')
 label_value = r'''    private LinearLayout labelValue(String label, String value) {
         LinearLayout row = new LinearLayout(this);
@@ -199,21 +194,16 @@ label_value = r'''    private LinearLayout labelValue(String label, String value
     }'''
 s = replace_block(s, '    private LinearLayout labelValue(String label, String value) {', label_value, 'landscape first column')
 
-# Give charts more vertical room, especially with the phone rotated.
 old_chart = '        c.addView(chart, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230)));'
 require(s, old_chart, 'r27 chart height')
 s = s.replace(old_chart, '        c.addView(chart, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, r36Landscape() ? dp(330) : dp(280)));', 1)
 
-# Also widen the first fields in compact monitoring rows so landscape does not
-# regress to the cramped R34 proportions.
 s = s.replace('r34AddInline(first, r31First(row,"date","createdAt"), 1.0f, true);',
               'r34AddInline(first, r31First(row,"date","createdAt"), 1.45f, true);', 2)
 s = s.replace('r34AddInline(first, row.optString("time",""), 0.7f, false);',
               'r34AddInline(first, row.optString("time",""), 0.9f, false);', 1)
 s = s.replace('r34AddInline(first,row.optString("time",""),0.65f,false);',
               'r34AddInline(first,row.optString("time",""),0.85f,false);', 1)
-
-# Weight history date/time fields likewise stay readable in landscape.
 s = s.replace('r34AddInline(line,r31Display(row,"date","createdAt"),1.15f,true);',
               'r34AddInline(line,r31Display(row,"date","createdAt"),1.55f,true);', 1)
 s = s.replace('r34AddInline(line,row.optString("time",""),0.75f,false);',
@@ -223,9 +213,6 @@ require(s, 'Android R37 TEST COMPLETO', 'R37 release marker')
 s = s.replace('Android R37 TEST COMPLETO', 'Android R38 TEST COMPLETO', 1)
 MAIN.write_text(s, encoding='utf-8')
 
-# ---------------------------------------------------------------------------
-# 3. Version only. No other working sector is touched.
-# ---------------------------------------------------------------------------
 g = GRADLE.read_text(encoding='utf-8')
 require(g, 'versionCode 37', 'versionCode 37')
 require(g, "versionName '1.0.0-android-r37-frozen-portrait-landscape-graphs-agenda-test'", 'R37 versionName')
