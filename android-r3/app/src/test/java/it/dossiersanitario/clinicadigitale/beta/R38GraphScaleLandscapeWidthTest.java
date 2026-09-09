@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import org.json.JSONObject;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -32,19 +31,24 @@ public class R38GraphScaleLandscapeWidthTest {
         throw new AssertionError("Metodo non chiuso: " + signature);
     }
 
-    @Test public void requestedGraphValuesRemainNumericallyDifferent() throws Exception {
-        JSONObject a = new JSONObject().put("value", "81,20 kg").put("date", "2026-09-08");
-        JSONObject b = new JSONObject().put("value", "80.75").put("date", "2026-09-09");
-        double av = R26ChartView.requestedValue(a, "value");
-        double bv = R26ChartView.requestedValue(b, "value");
+    @Test public void requestedGraphValuesRemainNumericallyDifferent() {
+        double av = R26ChartView.parseRequestedRaw("81,20 kg");
+        double bv = R26ChartView.parseRequestedRaw("80.75");
         assertEquals(81.20, av, 0.00001);
         assertEquals(80.75, bv, 0.00001);
         assertTrue(Math.abs(av - bv) > 0.4);
     }
 
-    @Test public void graphNeverFallsBackToNumericDateWhenRequestedMetricIsMissing() throws Exception {
-        JSONObject onlyDate = new JSONObject().put("date", "2026-09-09").put("createdAt", "2026-09-09T10:00:00");
-        assertTrue(Double.isNaN(R26ChartView.requestedValue(onlyDate, "value")));
+    @Test public void parserRejectsNonMetricDateTextInsteadOfInventingAValue() {
+        assertTrue(Double.isNaN(R26ChartView.parseRequestedRaw("nessun valore")));
+        String chart;
+        try { chart = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java"); }
+        catch (Exception e) { throw new AssertionError(e); }
+        String requested = block(chart, "static double requestedValue");
+        assertTrue(requested.contains("o.has(key)"));
+        assertTrue(requested.contains("parseRequestedRaw(o.opt(key))"));
+        assertFalse(requested.contains("keys()"));
+        assertFalse(requested.contains("numericValue"));
     }
 
     @Test public void smallRealVariationUsesTightVerticalRangeInsteadOfOldFlatHalfUnitPadding() {
