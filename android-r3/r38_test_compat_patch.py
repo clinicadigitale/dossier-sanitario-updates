@@ -2,12 +2,16 @@ from pathlib import Path
 
 TEST = Path('android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta')
 for p in TEST.glob('R*Test.java'):
+    if p.name == 'R38GraphScaleLandscapeWidthTest.java':
+        continue
     s = p.read_text(encoding='utf-8')
+
     # Intentional R38 landscape supersession only.
     s = s.replace('Math.max(dp(280), Math.min(dp(320)', 'Math.max(dp(340), Math.min(dp(420)')
     s = s.replace('screenWidth * 0.46f', 'screenWidth * 0.50f')
-    s = s.replace('Math.max(dp(160), Math.min(dp(270)', 'Math.max(dp(340), Math.min(dp(420)')
-    s = s.replace('screenWidth * 0.34f', 'screenWidth * 0.50f')
+    if p.name == 'R36SyncResponsiveGraphsAgendaRemindersTest.java':
+        s = s.replace('assertTrue(label.contains("dp(280)"));', 'assertTrue(label.contains("dp(340)"));')
+        s = s.replace('assertTrue(label.contains("dp(320)"));', 'assertTrue(label.contains("dp(420)"));')
 
     # Current successor version assertions only.
     s = s.replace('versionCode 37', 'versionCode 38')
