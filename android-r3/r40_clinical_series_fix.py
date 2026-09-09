@@ -121,15 +121,19 @@ final class R40ClinicalSeries {
         Collections.sort(abs);
         double median = abs.get(abs.size() / 2);
         if (!(median > 0)) return source;
-        double low = median / 50.0;
-        double high = median * 50.0;
         List<JSONObject> out = new ArrayList<>();
         for (JSONObject row : source) {
             double v = Math.abs(row.optDouble("value", Double.NaN));
-            if (!Double.isFinite(v) || v == 0.0 || v < low || v > high) continue;
+            if (!keepAgainstMedian(v, median)) continue;
             out.add(row);
         }
         return out.size() >= 2 ? out : source;
+    }
+
+    static boolean keepAgainstMedian(double value, double median) {
+        if (!Double.isFinite(value) || !Double.isFinite(median) || median <= 0.0) return false;
+        double v = Math.abs(value);
+        return v > 0.0 && v >= median / 50.0 && v <= median * 50.0;
     }
 
     private static double parse(Object raw) {
