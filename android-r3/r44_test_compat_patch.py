@@ -22,15 +22,12 @@ for p in TEST.glob('R*Test.java'):
     s = s.replace('syncInteractiveR43(activity, prefs)', 'syncInteractiveR44(activity, prefs)')
     s = s.replace('syncInteractiveR42(activity, prefs)', 'syncInteractiveR44(activity, prefs)')
     s = s.replace('syncInteractiveR41(activity, prefs)', 'syncInteractiveR44(activity, prefs)')
-    # Landscape successor deliberately supersedes earlier 48/52 geometry.
     s = s.replace('"0.48f"', '"0.30f"')
     s = s.replace('"0.52f"', '"0.70f"')
-    # R43 no longer uses the explicit pixel helper in labelValue; rotation rebuild stays authoritative.
     s = s.replace('assertTrue(label.contains("R43LayoutGeometry.landscapeLabelWidthPx"));', 'assertTrue(label.contains("0.30f"));')
     s = s.replace('assertTrue(main.contains("R43LayoutGeometry.landscapeLabelWidthPx"));', 'assertTrue(main.contains("0.30f"));')
     p.write_text(s, encoding='utf-8')
 
-# R42 axis test was intentionally superseded in R43 by inclined full clinical dates.
 p = TEST / 'R42RealDeviceLandscapeGraphSyncFixTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
@@ -42,11 +39,48 @@ if p.exists():
             s = s[:start] + repl + s[end:]
     p.write_text(s, encoding='utf-8')
 
-# R43 graph successor restores actual-date geometry while retaining helper fallback.
 p = TEST / 'R43WindowsParityLandscapeSyncTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
     s = s.replace('chartUsesEvenWindowsLikeObservationSpacing', 'chartKeepsInclinedDatesAndFallbackSpacing')
     p.write_text(s, encoding='utf-8')
+
+# R43 already introduced these helpers. R44 replaces drawYearAxis with a block that
+# includes the successor implementations, so remove only duplicate later definitions.
+CHART = ROOT / 'app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java'
+cs = CHART.read_text(encoding='utf-8')
+
+def remove_second_block(text, signature):
+    first = text.find(signature)
+    if first < 0:
+        return text
+    second = text.find(signature, first + len(signature))
+    if second < 0:
+        return text
+    brace = text.find('{', second)
+    if brace < 0:
+        return text
+    depth = 0
+    end = -1
+    for i in range(brace, len(text)):
+        if text[i] == '{': depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end < 0:
+        return text
+    while end < len(text) and text[end] in '\r\n':
+        end += 1
+    return text[:second] + text[end:]
+
+for sig in [
+    '    static float pointXForIndex(int index, int count, float left, float right) {',
+    '    static float dateLabelRotationDegrees() {',
+    '    private String shortClinicalDate(String raw) {'
+]:
+    cs = remove_second_block(cs, sig)
+CHART.write_text(cs, encoding='utf-8')
 
 print('R44 predecessor regression compatibility applied')
