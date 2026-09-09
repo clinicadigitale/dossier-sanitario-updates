@@ -79,6 +79,7 @@ jobs:
           python android-r3/r42_realdevice_landscape_graph_sync_fix.py
           python android-r3/r42_test_compat_patch.py
           python android-r3/r43_windows_parity_landscape_sync_fix.py
+          python android-r3/r43_test_compat_patch.py
 
       - name: Set up Java
         uses: actions/setup-java@v5
