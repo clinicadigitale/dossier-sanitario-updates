@@ -26,10 +26,9 @@ for p in TEST.glob('R*Test.java'):
         s = s.replace('assertTrue(label.contains("labelWidth = dp(92)"));',
                       'assertTrue(label.contains("new LinearLayout.LayoutParams(dp(92)"));')
         s = s.replace('assertFalse(label.contains("labelView.setMaxLines"));',
-                      'assertTrue(label.contains("labelView.setMaxLines(3)"));')
+                      'assertTrue(label.contains("labelView.setSingleLine(true)"));')
         s = s.replace('assertTrue(label.contains("Math.max(dp(280), Math.min(dp(320)"));', 'assertTrue(label.contains("0.48f"));')
         s = s.replace('assertTrue(label.contains("screenWidth * 0.46f"));', 'assertTrue(label.contains("0.52f"));')
-        s = s.replace('assertTrue(label.contains("labelView.setSingleLine(true)"));', 'assertTrue(label.contains("labelView.setMaxLines(3)"));')
         s = s.replace('R37ClinicalSeries.availableLabParameters', 'R38ClinicalSeries.availableLabParameters')
         s = s.replace('R37ClinicalSeries.labSeries', 'R38ClinicalSeries.labSeries')
         s = s.replace('R37ClinicalSeries.glycemiaFromReports', 'R38ClinicalSeries.glycemiaFromReports')
