@@ -21,6 +21,14 @@ for p in TEST.glob('R*Test.java'):
     for n in range(17, 43):
         s = s.replace(f'versionCode {n}', 'versionCode 42')
     s = re.sub(r'1\.0\.0-android-r\d+[A-Za-z0-9._-]*', R42_NAME, s)
+    # Historical tests used a mixture of single/double quote style around the
+    # Gradle versionName declaration. Validate the actual successor name rather
+    # than obsolete source formatting.
+    s = re.sub(
+        r'assertTrue\(gradle\.contains\("versionName .*?"\)\);',
+        f'assertTrue(gradle.contains("{R42_NAME}"));',
+        s
+    )
     s = s.replace('syncInteractiveR41(activity, prefs)', 'syncInteractiveR42(activity, prefs)')
     p.write_text(s, encoding='utf-8')
 
