@@ -118,7 +118,7 @@ jobs:
           if tests < 210 or failures or errors: raise SystemExit(f'R47 tests={tests} failures={failures} errors={errors}')
           b=pathlib.Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
           main=(b/'R6MainActivity.java').read_text(); chart=(b/'R26ChartView.java').read_text(); cloud=(b/'R12CloudManager.java').read_text(); transfer=(b/'R47RcloneTransfer.java').read_text(); gradle=pathlib.Path('android-r3/app/build.gradle').read_text()
-          pages=['Panoramica','Dati profilo','Dati di emergenza','Esenzioni','Documenti','Cronologia','Diagnosi','Terapie','Medici','Confronta','Grafici','Agenda','Monitoraggio','Preferenze','Backup','Aiuto','Logout']
+          pages=['Panoramica','Dati profilo','Dati di emergenza','Esenzioni','Documenti','Cronologia','Diagnosi','Terapie','Medici e specialisti','Confronta','Grafici','Agenda','Monitoraggio','Preferenze','Backup','Aiuto','Logout']
           for p in pages:
               if '"'+p+'"' not in main: raise SystemExit('missing page '+p)
           assert '0.30f' in main and '0.70f' in main
