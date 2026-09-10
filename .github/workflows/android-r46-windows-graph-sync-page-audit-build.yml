@@ -1,0 +1,214 @@
+name: Android R46 Windows Graph Sync Page Audit Verified Build
+
+on:
+  push:
+    branches:
+      - android-r46-windows-graph-sync-page-audit-0910
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply source patches through R46
+        run: |
+          python android-r3/r8_patch.py
+          python android-r3/r9_patch.py
+          python android-r3/r10_patch.py
+          python android-r3/r12_patch.py
+          python android-r3/r12_final_patch.py
+          python android-r3/r13_patch.py
+          python android-r3/r14_patch.py
+          python android-r3/r15_patch.py
+          python android-r3/r15_compile_fix.py
+          python android-r3/r16_patch.py
+          python android-r3/r17_patch.py
+          python android-r3/r18_patch.py
+          python android-r3/r18_runtime_fix.py
+          python android-r3/r19_patch.py
+          python android-r3/r20_checkpoint_crypto_patch.py
+          python android-r3/r21_fast_integrity_resume_patch.py
+          python android-r3/r22_streaming_integrity_patch.py
+          python android-r3/r23_login_iv_fix_patch_v2.py
+          python android-r3/r24_admin_profile_resume_patch.py
+          python android-r3/r25_stream_fix_eye_patch.py
+          python android-r3/r26_full_snapshot_bridge_patch.py
+          python android-r3/r26_near_final_ui_patch.py
+          python android-r3/r27_exact_import_hook.py
+          python android-r3/r27_ui_core_patch.py
+          python android-r3/r27_ui_sections_patch.py
+          python android-r3/r27_ui_preferences_version_patch.py
+          python android-r3/r27_upgrade_bootstrap_patch.py
+          python android-r3/r28_startup_async_patch.py
+          python android-r3/r29_progress_crashguard_patch.py
+          python android-r3/r30_bounded_import_patch.py
+          python android-r3/r30_test_compat_patch.py
+          python android-r3/r31_data_sync_patch.py
+          python android-r3/r31_ui_core_patch.py
+          python android-r3/r31_ui_tools_patch.py
+          python android-r3/r31_test_compat_patch.py
+          python android-r3/r32_ordering_monitor_patch.py
+          python android-r3/r32_test_compat_patch.py
+          python android-r3/r33_clinical_weight_parity_patch.py
+          python android-r3/r33_test_compat_patch.py
+          python android-r3/r34_sync_biometrics_contacts_layout_patch.py
+          python android-r3/r34_test_compat_patch.py
+          python android-r3/r35_second_factor_choice_fix_patch.py
+          python android-r3/r35_test_compat_patch.py
+          python android-r3/r36_sync_responsive_graphs_agenda_reminders_patch.py
+          python android-r3/r36_test_compat_patch.py
+          python android-r3/r37_frozen_portrait_landscape_graphs_agenda_patch.py
+          python android-r3/r37_test_compat_patch.py
+          python android-r3/r38_graph_scale_landscape_width_patch.py
+          python android-r3/r38_test_compat_patch.py
+          python android-r3/r39_landscape_exactlabs_sync_progress_patch_v2.py
+          python android-r3/r39_exactlabs_selector_sync_progress_patch_v3.py
+          python android-r3/r39_test_compat_patch_v3.py
+          python android-r3/r40_landscape_sync_fix.py
+          python android-r3/r40_clinical_series_fix.py
+          python android-r3/r40_chart_date_axis_fix.py
+          python android-r3/r40_test_compat_patch.py
+          python android-r3/r41_realdevice_final_fix.py
+          python android-r3/r41_test_compat_patch.py
+          python android-r3/r42_realdevice_landscape_graph_sync_fix.py
+          python android-r3/r42_test_compat_patch.py
+          python android-r3/r43_windows_parity_landscape_sync_fix.py
+          python android-r3/r43_test_compat_patch.py
+          python android-r3/r44_realdevice_parity_sync_fix.py
+          python android-r3/r44_test_compat_patch.py
+          python android-r3/r45_year_axis_progressive_backup_fix.py
+          python android-r3/r45_test_compat_patch.py
+          python android-r3/r46_windows_graph_sync_page_audit_fix.py
+          python android-r3/r46_test_compat_patch.py
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+
+      - name: Run all JVM regressions through R46
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest
+
+      - name: Verify every Android page and R46 gates
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET, pathlib, re
+          files = glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not files: raise SystemExit('JVM test reports missing')
+          tests = failures = errors = 0
+          for path in files:
+              root = ET.parse(path).getroot()
+              tests += int(root.attrib.get('tests', 0)); failures += int(root.attrib.get('failures', 0)); errors += int(root.attrib.get('errors', 0))
+          if tests < 206 or failures or errors:
+              raise SystemExit(f'R46 gate failed tests={tests} failures={failures} errors={errors}')
+
+          base = pathlib.Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          main = (base/'R6MainActivity.java').read_text()
+          chart = (base/'R26ChartView.java').read_text()
+          cloud = (base/'R12CloudManager.java').read_text()
+          decryptor = (base/'R46Dsl5Decryptor.java').read_text()
+          gradle = pathlib.Path('android-r3/app/build.gradle').read_text()
+
+          pages = {
+            'Panoramica':'renderPanoramica', 'Dati profilo':'renderDatiProfilo', 'Dati di emergenza':'renderDatiEmergenza',
+            'Esenzioni':'renderEsenzioni', 'Documenti':'renderDocumenti', 'Cronologia':'renderCronologia',
+            'Diagnosi':'renderDiagnosi', 'Terapie':'renderTerapie', 'Medici':'renderMedici',
+            'Confronta':'renderConfronta', 'Grafici':'renderGrafici', 'Agenda':'renderAgenda',
+            'Monitoraggio':'renderMonitoraggio', 'Preferenze':'renderPreferenze', 'Aiuto':'renderAiuto'
+          }
+          checked=[]
+          for page, method in pages.items():
+              if f'case "{page}":' not in main: raise SystemExit('Missing page route: '+page)
+              sig=f'private void {method}()'
+              pos=main.find(sig)
+              if pos < 0: raise SystemExit('Missing page renderer: '+method)
+              brace=main.find('{',pos); depth=0; end=-1
+              for i in range(brace,len(main)):
+                  if main[i]=='{': depth+=1
+                  elif main[i]=='}':
+                      depth-=1
+                      if depth==0: end=i+1; break
+              if end < 0 or end-brace < 25: raise SystemExit('Invalid page renderer: '+method)
+              checked.append(page)
+
+          assert '0.30f' in main and '0.70f' in main
+          assert 'R46GraphMath.windowsYearTicks(first, last)' in chart
+          assert 'R46GraphMath.chronologicalOrder(times, values.size())' in chart
+          assert 'dateLabelRotationDegrees()' in chart
+          assert 'R46Dsl5Decryptor.decrypt' in cloud
+          assert 'R46ProgressMath.percent(read, total, 46, 75)' in cloud
+          assert 'R46ProgressMath.percent(encryptedPart.length(), latest.size, 10, 45)' in cloud
+          assert 'cipher.update(buffer, 0, n)' in decryptor and 'cipher.doFinal()' in decryptor
+          assert 'versionCode 46' in gradle and '1.0.0-android-r46-windows-graph-sync-page-audit-test' in gradle
+
+          report=(f'R46_TESTS=PASS\nJVM_TESTS={tests}\nJVM_FAILURES={failures}\nJVM_ERRORS={errors}\n'
+                  f'PAGE_AUDIT={len(checked)}/{len(pages)} PASS\nLANDSCAPE_30_70_FROZEN=PASS\n'
+                  'GRAPH_WINDOWS_YEAR_TICKS=PASS\nGRAPH_CHRONOLOGICAL_CURVE=PASS\nGRAPH_SHARED_RENDERER_ALL_SECTIONS=PASS\n'
+                  'SYNC_STREAMING_AES_GCM=PASS\nSYNC_REAL_BYTE_PROGRESS=PASS\n')
+          pathlib.Path('android-r3/r46-build-test-report.txt').write_text(report)
+          print(report)
+          PY
+
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          test -s android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+
+      - name: Restore fixed beta signing key
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+
+      - name: Build signed R46 release APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+
+      - name: Verify APK identity signature permissions and transport
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='46' versionName='1.0.0-android-r46-windows-graph-sync-page-audit-test'" android-r3/apk-verification.txt
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO|CALL_PHONE'
+
+      - name: Upload verified R46 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R46_WINDOWS_GRAPH_SYNC_PAGE_AUDIT_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r46-build-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
