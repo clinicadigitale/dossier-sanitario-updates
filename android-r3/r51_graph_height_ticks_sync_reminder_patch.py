@@ -52,9 +52,6 @@ ticks = r'''    static int[] ticks(int firstYear, int lastYear, float plotWidthP
         int span = lastYear - firstYear;
         if (span == 0) return new int[]{firstYear};
 
-        // On multi-year graphs show five or six anchors instead of collapsing
-        // to only three labels on portrait phones. Positions remain true years;
-        // only the visible labels are sampled.
         int desired = Math.min(6, span + 1);
         if (span >= 4) desired = Math.max(5, desired);
         List<Integer> list = new ArrayList<>();
@@ -114,12 +111,11 @@ methods = r'''    private void r51CheckSyncReminderOnStartup() {
                     new AlertDialog.Builder(this)
                             .setTitle("Sincronizzazione dati sanitari")
                             .setMessage("I dati sanitari presenti su questo dispositivo non sono aggiornati. Vuoi sincronizzarli adesso?")
-                            .setPositiveButton("Sincronizza ora", (d, w) -> R12CloudManager.syncInteractive(this, prefs))
+                            .setPositiveButton("Sincronizza ora", (d, w) -> R12CloudManager.syncInteractiveR31(this, prefs))
                             .setNegativeButton("Ricordamelo più tardi", (d, w) -> r51ChooseSyncSnooze())
                             .show();
                 });
             } catch (Exception ignored) {
-                // Il controllo iniziale non deve rallentare né bloccare l'app.
             }
         }, "clinica-r51-sync-check").start();
     }
@@ -148,7 +144,6 @@ g = re.sub(r'versionCode\s*(?:=\s*)?\d+', 'versionCode 51', g, count=1)
 g = re.sub(r'versionName\s*(?:=\s*)?[\"\'][^\"\']+[\"\']', 'versionName "1.0.0-android-r51-graph-height-ticks-sync-reminder-test"', g, count=1)
 GRADLE.write_text(g, encoding='utf-8')
 
-# Focused regression tests.
 TEST.mkdir(parents=True, exist_ok=True)
 (TEST / 'R51GraphHeightTicksSyncReminderTest.java').write_text(r'''package it.dossiersanitario.clinicadigitale.beta;
 
@@ -181,6 +176,7 @@ public class R51GraphHeightTicksSyncReminderTest {
         assertTrue(m.contains("I dati sanitari presenti su questo dispositivo non sono aggiornati. Vuoi sincronizzarli adesso?"));
         assertTrue(m.contains("Sincronizza ora"));
         assertTrue(m.contains("Ricordamelo più tardi"));
+        assertTrue(m.contains("syncInteractiveR31(this, prefs)"));
         assertTrue(m.contains("1 ora")); assertTrue(m.contains("3 ore")); assertTrue(m.contains("6 ore"));
         assertTrue(m.contains("12 ore")); assertTrue(m.contains("24 ore"));
         assertTrue(m.contains("r51_sync_remind_after"));
