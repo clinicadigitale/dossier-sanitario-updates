@@ -41,10 +41,10 @@ final class R52GraphLayout {
 '''
 (BASE / 'R52GraphLayout.java').write_text(layout, encoding='utf-8')
 
-# Every graph in R6MainActivity is inserted through a variable called `chart`.
-# Replace the actual fixed LayoutParams height, not only setMinimumHeight().
+# Replace the ACTUAL LayoutParams height of every chart. This also catches old
+# orientation-specific expressions such as landscape ? dp(330) : dp(280).
 pattern = re.compile(
-    r'([A-Za-z0-9_]+\.addView\(chart,\s*new LinearLayout\.LayoutParams\(ViewGroup\.LayoutParams\.MATCH_PARENT,\s*)dp\(\d+\)(\)\);)'
+    r'([A-Za-z0-9_]+\.addView\(chart,\s*new LinearLayout\.LayoutParams\(ViewGroup\.LayoutParams\.MATCH_PARENT,\s*)[^;\n]+?(\)\);)'
 )
 main, changed = pattern.subn(
     r'\1dp(R52GraphLayout.containerHeightDp(r36Landscape()))\2',
@@ -53,19 +53,22 @@ main, changed = pattern.subn(
 if changed < 4:
     raise SystemExit('R52 expected at least 4 real graph containers, changed %d' % changed)
 
-# No graph container may remain locked to a numeric dp height.
+# No chart container may retain an independent numeric or ternary height.
 remaining = []
+container_lines = []
 for line in main.splitlines():
     if '.addView(chart' in line and 'LinearLayout.LayoutParams' in line:
+        container_lines.append(line.strip())
         if 'R52GraphLayout.containerHeightDp(r36Landscape())' not in line:
             remaining.append(line.strip())
 if remaining:
     raise SystemExit('R52 graph containers not converted: ' + ' | '.join(remaining))
+if len(container_lines) != changed:
+    raise SystemExit('R52 container audit mismatch: lines=%d changed=%d' % (len(container_lines), changed))
 
 MAIN.write_text(main, encoding='utf-8')
 
-# Keep the view minimum coherent with the real container. This does not alter
-# data, axis, dates, labels, reference logic or rendering calculations.
+# Keep the generic graph view minimum coherent with the real container.
 chart = CHART.read_text(encoding='utf-8')
 require(chart, 'setMinimumHeight(dp(400));', 'R51 minimum height')
 chart = chart.replace('setMinimumHeight(dp(400));', 'setMinimumHeight(dp(430));', 1)
@@ -78,7 +81,7 @@ g = re.sub(r'versionName\s*(?:=\s*)?[\"\'][^\"\']+[\"\']', 'versionName "1.0.0-a
 GRADLE.write_text(g, encoding='utf-8')
 
 # Regression tests: verify actual usable plot height in BOTH orientations and
-# verify every graph route uses the shared real container-height policy.
+# verify every graph container uses the single real-height policy.
 TEST.mkdir(parents=True, exist_ok=True)
 (TEST / 'R52AllGraphsPortraitLandscapeHeightTest.java').write_text(r'''package it.dossiersanitario.clinicadigitale.beta;
 
@@ -107,12 +110,23 @@ public class R52AllGraphsPortraitLandscapeHeightTest {
 
     @Test public void everyGraphContainerUsesOrientationAwareSharedHeight() throws Exception {
         String m = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
-        int chartViews = occurrences(m, "new R26ChartView(")
-                + occurrences(m, "new R33PressureChartView(")
-                + occurrences(m, "new R33WeightJourneyChartView(");
-        int heightUses = occurrences(m, "dp(R52GraphLayout.containerHeightDp(r36Landscape()))");
-        assertTrue("Expected all graph types to exist", chartViews >= 4);
-        assertEquals("Every graph instance must use the R52 real height", chartViews, heightUses);
+        String[] lines = m.split("\\n");
+        int containers = 0;
+        for (String line : lines) {
+            if (line.contains(".addView(chart") && line.contains("LinearLayout.LayoutParams")) {
+                containers++;
+                assertTrue("Graph container escaped R52 height policy: " + line,
+                        line.contains("dp(R52GraphLayout.containerHeightDp(r36Landscape()))"));
+            }
+        }
+        assertTrue("Expected all graph routes to have real containers", containers >= 4);
+    }
+
+    @Test public void allKnownGraphTypesStillExist() throws Exception {
+        String m = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
+        assertTrue(m.contains("new R26ChartView("));
+        assertTrue(m.contains("new R33PressureChartView("));
+        assertTrue(m.contains("new R33WeightJourneyChartView("));
     }
 
     @Test public void r51DataAxisTicksReminderAndR50SyncStayFrozen() throws Exception {
@@ -125,12 +139,6 @@ public class R52AllGraphsPortraitLandscapeHeightTest {
         assertTrue(m.contains("I dati sanitari presenti su questo dispositivo non sono aggiornati. Vuoi sincronizzarli adesso?"));
         assertTrue(cloud.contains("r50CopyVerified(partial, target)"));
         assertTrue(cloud.contains("r50CopyVerified(old, target)"));
-    }
-
-    private int occurrences(String source, String needle) {
-        int count = 0, at = 0;
-        while ((at = source.indexOf(needle, at)) >= 0) { count++; at += needle.length(); }
-        return count;
     }
 }
 ''', encoding='utf-8')
