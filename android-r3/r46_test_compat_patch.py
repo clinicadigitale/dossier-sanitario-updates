@@ -68,6 +68,14 @@ if p.exists():
     s = s.replace('assertFalse(axis.contains("maximumLabels"));', 'assertTrue(axis.contains("R46GraphMath.windowsYearTicks(first, last)"));')
     p.write_text(s, encoding='utf-8')
 
+# The R46 chronological-curve test reads a source file, therefore it must declare checked I/O.
+p = TEST / 'R46WindowsGraphSyncPageAuditTest.java'
+if p.exists():
+    s = p.read_text(encoding='utf-8')
+    s = s.replace('@Test public void curveConnectsPointsInClinicalChronologicalOrder() {',
+                  '@Test public void curveConnectsPointsInClinicalChronologicalOrder() throws Exception {')
+    p.write_text(s, encoding='utf-8')
+
 # Normalize historical package identity tests to final R46 identity.
 for p in TEST.glob('R*Test.java'):
     if p.name == 'R46WindowsGraphSyncPageAuditTest.java':
