@@ -38,8 +38,9 @@ def replace_block(text, signature, replacement, label):
 # and guarantee 5-6 readable year labels on ordinary multi-year series.
 # ---------------------------------------------------------------------------
 chart = CHART.read_text(encoding='utf-8')
-require(chart, 'setMinimumHeight(dp(220));', 'R50 graph minimum height')
-chart = chart.replace('setMinimumHeight(dp(220));', 'setMinimumHeight(dp(400));', 1)
+chart, height_changes = re.subn(r'setMinimumHeight\(dp\(\d+\)\);', 'setMinimumHeight(dp(400));', chart, count=1)
+if height_changes != 1:
+    raise SystemExit('R51 could not identify the single R50 graph minimum height')
 require(chart, 'float left = dp(66), right = getWidth() - dp(12), top = dp(20);', 'R50 graph geometry')
 require(chart, 'R47GraphGeometry.yearStart(tMin)', 'R47 graph chronology')
 require(chart, 'R47GraphGeometry.yearEndExclusive(tMax)', 'R47 graph chronology end')
