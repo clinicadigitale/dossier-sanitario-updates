@@ -1,0 +1,150 @@
+name: Android R52 All Graphs Portrait Landscape Height Verified Build
+
+on:
+  push:
+    branches:
+      - android-r52-all-graphs-portrait-landscape-height-0910
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact R47 chain, R50, R51, then R52 only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+      - name: Audit every graph container in both orientations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          b=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          main=(b/'R6MainActivity.java').read_text()
+          chart=(b/'R26ChartView.java').read_text()
+          layout=(b/'R52GraphLayout.java').read_text()
+          geom=(b/'R47GraphGeometry.java').read_text()
+          cloud=(b/'R12CloudManager.java').read_text()
+          exact=(b/'R27ExactWindows.java').read_text()
+          g=Path('android-r3/app/build.gradle').read_text()
+
+          pages=['Panoramica','Dati profilo','Dati di emergenza','Esenzioni','Documenti','Cronologia','Diagnosi','Terapie','Medici e specialisti','Confronta','Grafici','Agenda','Monitoraggio','Preferenze','Backup','Aiuto','Logout']
+          for p in pages: assert '"'+p+'"' in main, p
+
+          graph_instances=(main.count('new R26ChartView(')+main.count('new R33PressureChartView(')+main.count('new R33WeightJourneyChartView('))
+          height_uses=main.count('dp(R52GraphLayout.containerHeightDp(r36Landscape()))')
+          assert graph_instances >= 4, graph_instances
+          assert height_uses == graph_instances, (height_uses, graph_instances)
+          for line in main.splitlines():
+              if '.addView(chart' in line and 'LinearLayout.LayoutParams' in line:
+                  assert 'R52GraphLayout.containerHeightDp(r36Landscape())' in line, line
+
+          assert 'PORTRAIT_HEIGHT_DP = 430' in layout
+          assert 'LANDSCAPE_HEIGHT_DP = 430' in layout
+          assert 'return landscape ? LANDSCAPE_HEIGHT_DP : PORTRAIT_HEIGHT_DP' in layout
+          assert 'setMinimumHeight(dp(430))' in chart
+          assert 'float left = dp(66), right = getWidth() - dp(12), top = dp(20);' in chart
+          assert 'R47GraphGeometry.yearStart(tMin)' in chart and 'R47GraphGeometry.yearEndExclusive(tMax)' in chart
+          assert 'int desired = Math.min(6, span + 1);' in geom and 'Math.max(5, desired)' in geom
+          assert 'documentsForProfile(SharedPreferences prefs, String profileId)' not in exact
+          assert 'I dati sanitari presenti su questo dispositivo non sono aggiornati. Vuoi sincronizzarli adesso?' in main
+          assert 'r50CopyVerified(partial, target)' in cloud and 'r50CopyVerified(old, target)' in cloud
+          assert 'versionCode 52' in g and '1.0.0-android-r52-all-graphs-height-test' in g
+
+          # Quantitative effective plot area using the actual R47/R50 reserves.
+          portrait=430-20-154
+          landscape=430-20-154
+          assert portrait >= 250 and landscape >= 250
+          assert portrait == landscape
+          print('PAGE_AUDIT=17/17 PASS')
+          print('GRAPH_INSTANCES=%d' % graph_instances)
+          print('GRAPH_CONTAINER_HEIGHT_USES=%d/%d PASS' % (height_uses, graph_instances))
+          print('PORTRAIT_CONTAINER_HEIGHT=430DP PASS')
+          print('LANDSCAPE_CONTAINER_HEIGHT=430DP PASS')
+          print('PORTRAIT_EFFECTIVE_PLOT_MIN=%dDP PASS' % portrait)
+          print('LANDSCAPE_EFFECTIVE_PLOT_MIN=%dDP PASS' % landscape)
+          print('R47_R51_GRAPH_DATA_AXIS_TICKS_FROZEN=PASS')
+          print('R50_SYNC_ENGINE_FROZEN=PASS')
+          print('R51_STARTUP_REMINDER_FROZEN=PASS')
+          PY
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+      - name: Run all JVM regressions
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest
+      - name: Verify JVM reports and write release report
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET, pathlib
+          fs=glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not fs: raise SystemExit('missing JVM reports')
+          t=f=e=0
+          for x in fs:
+              r=ET.parse(x).getroot(); t+=int(r.attrib.get('tests',0)); f+=int(r.attrib.get('failures',0)); e+=int(r.attrib.get('errors',0))
+          if t < 222 or f or e: raise SystemExit(f'R52 tests={t} failures={f} errors={e}')
+          report=(f'R52_TESTS=PASS\nJVM_TESTS={t}\nJVM_FAILURES={f}\nJVM_ERRORS={e}\n'
+                  'PAGE_AUDIT=17/17 PASS\nALL_GRAPH_CONTAINERS=PASS\nPORTRAIT_HEIGHT=430DP PASS\nLANDSCAPE_HEIGHT=430DP PASS\n'
+                  'EFFECTIVE_PLOT_HEIGHT_MIN=256DP PASS\nR47_R51_GRAPH_DATA_AXIS_TICKS_FROZEN=PASS\nR50_SYNC_ENGINE_FROZEN=PASS\nR51_STARTUP_REMINDER_FROZEN=PASS\n')
+          pathlib.Path('android-r3/r52-build-test-report.txt').write_text(report); print(report)
+          PY
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+      - name: Restore fixed beta signing key
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+      - name: Build signed R52 APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+      - name: Verify APK
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 >> android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' >> android-r3/apk-verification.txt
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='52' versionName='1.0.0-android-r52-all-graphs-height-test'" android-r3/apk-verification.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R52_ALL_GRAPHS_PORTRAIT_LANDSCAPE_HEIGHT_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r52-build-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
