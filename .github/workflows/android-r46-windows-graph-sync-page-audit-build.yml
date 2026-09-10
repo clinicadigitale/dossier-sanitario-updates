@@ -138,9 +138,10 @@ jobs:
           pages = {
             'Panoramica':'renderPanoramica', 'Dati profilo':'renderDatiProfilo', 'Dati di emergenza':'renderDatiEmergenza',
             'Esenzioni':'renderEsenzioni', 'Documenti':'renderDocumenti', 'Cronologia':'renderCronologia',
-            'Diagnosi':'renderDiagnosi', 'Terapie':'renderTerapie', 'Medici':'renderMedici',
+            'Diagnosi':'renderDiagnosi', 'Terapie':'renderTerapie', 'Medici e specialisti':'renderMedici',
             'Confronta':'renderConfronta', 'Grafici':'renderGrafici', 'Agenda':'renderAgenda',
-            'Monitoraggio':'renderMonitoraggio', 'Preferenze':'renderPreferenze', 'Aiuto':'renderAiuto'
+            'Monitoraggio':'renderMonitoraggio', 'Preferenze':'renderPreferenze', 'Backup':'renderBackup',
+            'Aiuto':'renderAiuto', 'Logout':'renderLogout'
           }
           checked=[]
           for page, method in pages.items():
