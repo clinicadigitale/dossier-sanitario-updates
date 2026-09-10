@@ -39,8 +39,8 @@ if 'private final List<JSONObject> pointRecords' not in chart:
         raise SystemExit('R45 failed: chart dates list missing')
     chart = chart.replace(marker, marker + '\n    private final List<JSONObject> pointRecords = new ArrayList<>();', 1)
 
-old_ingest = '''                    values.add(v);\n                    dates.add(o == null ? "" : o.optString("date", o.optString("clinicalDate", o.optString("createdAt", ""))));'''
-new_ingest = '''                    values.add(v);\n                    dates.add(o == null ? "" : o.optString("date", o.optString("clinicalDate", o.optString("createdAt", ""))));\n                    pointRecords.add(o == null ? new JSONObject() : o);'''
+old_ingest = '''                    values.add(v);\n                    dates.add(o == null ? "" : firstText(o, "date", "clinicalDate", "issueDate", "createdAt"));'''
+new_ingest = '''                    values.add(v);\n                    dates.add(o == null ? "" : firstText(o, "date", "clinicalDate", "issueDate", "createdAt"));\n                    pointRecords.add(o == null ? new JSONObject() : o);'''
 if old_ingest not in chart:
     raise SystemExit('R45 failed: chart ingest block missing')
 chart = chart.replace(old_ingest, new_ingest, 1)
