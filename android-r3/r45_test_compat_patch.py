@@ -78,8 +78,7 @@ if p.exists():
         s = s[:line_start] + repl + s[end:]
         p.write_text(s, encoding='utf-8')
 
-# Normalize every historical version test to the final build identity, including
-# regex-based assertions introduced by R44.
+# Normalize ordinary historical version* tests.
 for p in TEST.glob('R*Test.java'):
     s = p.read_text(encoding='utf-8')
     pos = 0
@@ -105,5 +104,13 @@ for p in TEST.glob('R*Test.java'):
         s = s[:line_start] + repl + s[end:]
         pos = line_start + len(repl)
     p.write_text(s, encoding='utf-8')
+
+# Four older tests use historical names rather than version* even though their bodies
+# contain only package/version identity assertions. Align only those identity checks.
+identity_replacement = lambda name: f'''    @Test public void {name}() throws Exception {{\n        String gradle = read("build.gradle");\n        assertTrue(gradle.contains("versionCode 45"));\n        assertTrue(gradle.contains("{R45_NAME}"));\n    }}'''
+replace_test_method('R26NearFinalTest.java', 'packageIdentityContinuesInR29()', identity_replacement('packageIdentityContinuesInR29'))
+replace_test_method('R27CompleteWindowsImportTest.java', 'exactWindowsFunctionalityContinuesInR29()', identity_replacement('exactWindowsFunctionalityContinuesInR29'))
+replace_test_method('R28StartupAsyncTest.java', 'packageVersionIsR29()', identity_replacement('packageVersionIsR29'))
+replace_test_method('R29ProgressCrashGuardTest.java', 'packageVersionIsR29()', identity_replacement('packageVersionIsR29'))
 
 print('R45 predecessor regression compatibility applied')
