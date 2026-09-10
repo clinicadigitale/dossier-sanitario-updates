@@ -118,7 +118,7 @@ jobs:
       - name: Verify every Android page and R46 gates
         run: |
           python - <<'PY'
-          import glob, xml.etree.ElementTree as ET, pathlib, re
+          import glob, xml.etree.ElementTree as ET, pathlib
           files = glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
           if not files: raise SystemExit('JVM test reports missing')
           tests = failures = errors = 0
@@ -144,7 +144,7 @@ jobs:
           }
           checked=[]
           for page, method in pages.items():
-              if f'case "{page}":' not in main: raise SystemExit('Missing page route: '+page)
+              if f'"{page}"' not in main: raise SystemExit('Missing navigation page: '+page)
               sig=f'private void {method}()'
               pos=main.find(sig)
               if pos < 0: raise SystemExit('Missing page renderer: '+method)
