@@ -67,7 +67,6 @@ if p.exists():
     s = s.replace('assertFalse(axis.contains("maximumLabels"));', 'assertTrue(axis.contains("R46GraphMath.windowsYearTicks(first, last)"));')
     p.write_text(s, encoding='utf-8')
 
-# The R46 chronological-curve test reads a source file, therefore it must declare checked I/O.
 p = TEST / 'R46WindowsGraphSyncPageAuditTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
@@ -75,15 +74,15 @@ if p.exists():
                   '@Test public void curveConnectsPointsInClinicalChronologicalOrder() throws Exception {')
     p.write_text(s, encoding='utf-8')
 
-# Audit every actual navigation page. Do not depend on whitespace/formatting of the switch statement.
 replace_method('R46WindowsGraphSyncPageAuditTest.java', 'everyMainPageHasRouteAndRenderer()', r'''    @Test public void everyMainPageHasRouteAndRenderer() throws Exception {
         String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
         String[][] pages = new String[][]{
             {"Panoramica","renderPanoramica"}, {"Dati profilo","renderDatiProfilo"}, {"Dati di emergenza","renderDatiEmergenza"},
             {"Esenzioni","renderEsenzioni"}, {"Documenti","renderDocumenti"}, {"Cronologia","renderCronologia"},
-            {"Diagnosi","renderDiagnosi"}, {"Terapie","renderTerapie"}, {"Medici","renderMedici"},
+            {"Diagnosi","renderDiagnosi"}, {"Terapie","renderTerapie"}, {"Medici e specialisti","renderMedici"},
             {"Confronta","renderConfronta"}, {"Grafici","renderGrafici"}, {"Agenda","renderAgenda"},
-            {"Monitoraggio","renderMonitoraggio"}, {"Preferenze","renderPreferenze"}, {"Aiuto","renderAiuto"}
+            {"Monitoraggio","renderMonitoraggio"}, {"Preferenze","renderPreferenze"}, {"Backup","renderBackup"},
+            {"Aiuto","renderAiuto"}, {"Logout","renderLogout"}
         };
         for (String[] page : pages) {
             assertTrue("missing navigation page " + page[0], main.contains("\"" + page[0] + "\""));
@@ -93,7 +92,6 @@ replace_method('R46WindowsGraphSyncPageAuditTest.java', 'everyMainPageHasRouteAn
         assertTrue(main.contains("0.70f"));
     }''')
 
-# Normalize historical package identity tests to final R46 identity.
 for p in TEST.glob('R*Test.java'):
     if p.name == 'R46WindowsGraphSyncPageAuditTest.java':
         continue
