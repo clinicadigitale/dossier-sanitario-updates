@@ -86,6 +86,7 @@ jobs:
           python android-r3/r46_test_compat_patch.py
           python android-r3/r47_sync_crash_graph_layout_fix.py
           python android-r3/r47_test_compat_patch.py
+          python android-r3/r47_compile_compat_patch.py
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
