@@ -1,0 +1,121 @@
+name: Android R51 Graph Height Ticks Sync Reminder Verified Build
+
+on:
+  push:
+    branches:
+      - android-r51-r50-graph-height-ticks-sync-reminder-0910
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply exact R47 chain, R50, then R51 only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+      - name: Audit R51 scope and all pages
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          b=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          main=(b/'R6MainActivity.java').read_text(); chart=(b/'R26ChartView.java').read_text(); geom=(b/'R47GraphGeometry.java').read_text(); cloud=(b/'R12CloudManager.java').read_text(); exact=(b/'R27ExactWindows.java').read_text(); transfer=(b/'R47RcloneTransfer.java').read_text(); g=Path('android-r3/app/build.gradle').read_text()
+          pages=['Panoramica','Dati profilo','Dati di emergenza','Esenzioni','Documenti','Cronologia','Diagnosi','Terapie','Medici e specialisti','Confronta','Grafici','Agenda','Monitoraggio','Preferenze','Backup','Aiuto','Logout']
+          for p in pages: assert '"'+p+'"' in main, p
+          assert 'setMinimumHeight(dp(400))' in chart
+          assert 'float left = dp(66), right = getWidth() - dp(12), top = dp(20);' in chart
+          assert 'R47GraphGeometry.yearStart(tMin)' in chart and 'R47GraphGeometry.yearEndExclusive(tMax)' in chart
+          assert 'int desired = Math.min(6, span + 1);' in geom and 'Math.max(5, desired)' in geom
+          assert 'documentsForProfile(SharedPreferences prefs, String profileId)' not in exact
+          assert 'r51CheckSyncReminderOnStartup();' in main
+          assert 'I dati sanitari presenti su questo dispositivo non sono aggiornati. Vuoi sincronizzarli adesso?' in main
+          for x in ['1 ora','3 ore','6 ore','12 ore','24 ore']: assert x in main
+          assert 'r51HasNewerCloudData' in cloud and 'latestSnapshot(context, cfg)' in cloud
+          assert 'STALL_MS = 90_000L' in transfer and 'process.waitFor(1, TimeUnit.SECONDS)' in transfer
+          assert 'r50CopyVerified(partial, target)' in cloud and 'r50CopyVerified(old, target)' in cloud
+          assert 'versionCode 51' in g and '1.0.0-android-r51-graph-height-ticks-sync-reminder-test' in g
+          print('PAGE_AUDIT=17/17 PASS')
+          print('R47_GRAPH_DATA_PATH_FROZEN=PASS')
+          print('R48_PROFILE_CHANGES_ABSENT=PASS')
+          print('GRAPH_HEIGHT_400DP=PASS')
+          print('GRAPH_TICKS_5_6=PASS')
+          print('R50_SYNC_ENGINE_FROZEN=PASS')
+          print('STARTUP_SYNC_REMINDER=PASS')
+          PY
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+      - name: Run all JVM regressions
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest
+      - name: Verify JVM reports
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET, pathlib
+          fs=glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not fs: raise SystemExit('missing JVM reports')
+          t=f=e=0
+          for x in fs:
+              r=ET.parse(x).getroot(); t+=int(r.attrib.get('tests',0)); f+=int(r.attrib.get('failures',0)); e+=int(r.attrib.get('errors',0))
+          if t < 218 or f or e: raise SystemExit(f'R51 tests={t} failures={f} errors={e}')
+          report=f'R51_TESTS=PASS\nJVM_TESTS={t}\nJVM_FAILURES={f}\nJVM_ERRORS={e}\nPAGE_AUDIT=17/17 PASS\nR47_GRAPH_DATA_PATH_FROZEN=PASS\nR48_PROFILE_CHANGES_ABSENT=PASS\nGRAPH_HEIGHT_400DP=PASS\nGRAPH_TICKS_5_6=PASS\nR50_SYNC_ENGINE_FROZEN=PASS\nSTARTUP_SYNC_REMINDER=PASS\n'
+          pathlib.Path('android-r3/r51-build-test-report.txt').write_text(report); print(report)
+          PY
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+      - name: Restore fixed beta signing key
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+      - name: Build signed R51 APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+      - name: Verify APK
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 >> android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' >> android-r3/apk-verification.txt
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='51' versionName='1.0.0-android-r51-graph-height-ticks-sync-reminder-test'" android-r3/apk-verification.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R51_GRAPH_HEIGHT_TICKS_SYNC_REMINDER_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r51-build-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
