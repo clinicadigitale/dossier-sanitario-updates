@@ -43,6 +43,29 @@ replace_method('R45YearAxisProgressiveBackupTest.java','axisDrawsYearsNotReportD
 replace_method('R45YearAxisProgressiveBackupTest.java','yearAxisUsesWindowsSparseChronologicalScheme()',r'''    @Test public void yearAxisUsesWindowsSparseChronologicalScheme() {
         assertArrayEquals(new int[]{2003,2005,2007,2009,2011,2013,2015,2017,2019,2021,2023,2025,2026},R46GraphMath.windowsYearTicks(2003,2026));
     }''')
+replace_method('R44RealDeviceParitySyncTest.java','valueSelectorParameterDiscoveryIsSinglePass()',r'''    @Test public void valueSelectorParameterDiscoveryIsSinglePass() throws Exception {
+        String series = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R40ClinicalSeries.java");
+        int start = series.indexOf("static JSONArray availableLabParameters");
+        int end = series.indexOf("static JSONArray labSeries", start);
+        assertTrue(start >= 0 && end > start);
+        String block = series.substring(start, end);
+        assertFalse(block.contains("labSeries(prefs"));
+        assertTrue(block.contains("R27ExactWindows.activeProfileId(prefs)"));
+        assertTrue(block.contains("R27ExactWindows.documentsForProfile(prefs, profileId)"));
+        String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
+        assertTrue(main.contains("JSONArray labs = R40ClinicalSeries.availableLabParameters(prefs)"));
+    }''')
+replace_method('R45YearAxisProgressiveBackupTest.java','decryptProgressCountsEncryptedBytesNotOnlyProducedPlaintext()',r'''    @Test public void decryptProgressCountsEncryptedBytesNotOnlyProducedPlaintext() throws Exception {
+        String crypto = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R22StreamingDsl5.java");
+        assertTrue(crypto.contains("GCMBlockCipher"));
+        assertTrue(crypto.contains("cipher.processBytes"));
+        assertTrue(crypto.contains("cipher.doFinal"));
+        assertTrue(crypto.contains("progress.onProgress"));
+        String cloud = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java");
+        assertTrue(cloud.contains("R22StreamingDsl5.decryptVerified(encryptedPart, plainZip, recovery"));
+        assertTrue(cloud.contains("R45ProgressMath.percent(encryptedPart.length(), latest.size, 20, 40)"));
+        assertTrue(cloud.contains("R45ProgressMath.importPercent(done, total)"));
+    }''')
 replace_method('R46WindowsGraphSyncPageAuditTest.java','allGraphsUseSharedWindowsYearAxis()',r'''    @Test public void allGraphsUseSharedWindowsYearAxis() throws Exception {
         String chart=read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java"); assertTrue(chart.contains("R46GraphMath.windowsYearTicks(firstYear, lastYear)")); assertTrue(chart.contains("dateLabelRotationDegrees()"));
     }''')
@@ -61,4 +84,4 @@ for p in TEST.glob('R*Test.java'):
     s=s.replace('versionIsR47','versionIsR48')
     p.write_text(s,encoding='utf-8')
 
-print('R48 historical regressions aligned only for graph, decrypt and identity supersessions')
+print('R48 historical regressions aligned only for graph, profile scan, decrypt and identity supersessions')
