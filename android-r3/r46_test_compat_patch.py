@@ -61,7 +61,6 @@ replace_method('R45YearAxisProgressiveBackupTest.java', 'progressMathAdvancesOne
         assertTrue(sawIncrementOfOne);
     }''')
 
-# R45 axis source assertion remains valid except its helper now delegates to R46.
 p = TEST / 'R45YearAxisProgressiveBackupTest.java'
 if p.exists():
     s = p.read_text(encoding='utf-8')
@@ -75,6 +74,24 @@ if p.exists():
     s = s.replace('@Test public void curveConnectsPointsInClinicalChronologicalOrder() {',
                   '@Test public void curveConnectsPointsInClinicalChronologicalOrder() throws Exception {')
     p.write_text(s, encoding='utf-8')
+
+# Audit every actual navigation page. Do not depend on whitespace/formatting of the switch statement.
+replace_method('R46WindowsGraphSyncPageAuditTest.java', 'everyMainPageHasRouteAndRenderer()', r'''    @Test public void everyMainPageHasRouteAndRenderer() throws Exception {
+        String main = read("src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java");
+        String[][] pages = new String[][]{
+            {"Panoramica","renderPanoramica"}, {"Dati profilo","renderDatiProfilo"}, {"Dati di emergenza","renderDatiEmergenza"},
+            {"Esenzioni","renderEsenzioni"}, {"Documenti","renderDocumenti"}, {"Cronologia","renderCronologia"},
+            {"Diagnosi","renderDiagnosi"}, {"Terapie","renderTerapie"}, {"Medici","renderMedici"},
+            {"Confronta","renderConfronta"}, {"Grafici","renderGrafici"}, {"Agenda","renderAgenda"},
+            {"Monitoraggio","renderMonitoraggio"}, {"Preferenze","renderPreferenze"}, {"Aiuto","renderAiuto"}
+        };
+        for (String[] page : pages) {
+            assertTrue("missing navigation page " + page[0], main.contains("\"" + page[0] + "\""));
+            assertTrue("missing renderer " + page[1], main.contains("private void " + page[1] + "()"));
+        }
+        assertTrue(main.contains("0.30f"));
+        assertTrue(main.contains("0.70f"));
+    }''')
 
 # Normalize historical package identity tests to final R46 identity.
 for p in TEST.glob('R*Test.java'):
