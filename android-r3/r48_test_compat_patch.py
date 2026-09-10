@@ -84,4 +84,5 @@ for p in TEST.glob('R*Test.java'):
     s=s.replace('versionIsR47','versionIsR48')
     p.write_text(s,encoding='utf-8')
 
+exec(Path('android-r3/r48_final_compat_patch.py').read_text(encoding='utf-8'))
 print('R48 historical regressions aligned only for graph, profile scan, decrypt and identity supersessions')
