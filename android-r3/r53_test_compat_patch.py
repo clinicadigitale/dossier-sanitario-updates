@@ -22,6 +22,7 @@ for p in TEST.glob('*.java'):
     s = s.replace('1.0.0-android-r52-all-graphs-height-test', R53_NAME)
     if p.name == 'R46WindowsGraphSyncPageAuditTest.java':
         s = s.replace('versionCode 47', 'versionCode 53')
+        s = s.replace('versionCode = 47', 'versionCode = 53')
         s = s.replace('1.0.0-android-r47-sync-crash-graph-layout-test', R53_NAME)
     if s != original:
         p.write_text(s, encoding='utf-8')
