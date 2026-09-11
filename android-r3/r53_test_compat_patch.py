@@ -11,8 +11,7 @@ def replace_once(text, old, new, label):
         raise SystemExit(f'R53 compat expected one {label}, found {count}')
     return text.replace(old, new, 1)
 
-# Align inherited version assertions to R53, including the historical R46 test
-# whose method was intentionally rewritten by the R47 compatibility layer.
+# Align inherited version assertions to R53.
 changed = 0
 for p in TEST.glob('*.java'):
     s = p.read_text(encoding='utf-8')
@@ -84,6 +83,14 @@ def replace_test_method(text, method_name, replacement):
     if end < 0:
         raise SystemExit('R53 compat unclosed test method ' + method_name)
     return text[:line] + replacement.rstrip() + text[end:]
+
+# Rewrite the historical R46 identity test explicitly. This avoids inherited
+# quoting/formatting assumptions from R47 while still checking the actual R53
+# version code and version name in app/build.gradle.
+r46_test = TEST / 'R46WindowsGraphSyncPageAuditTest.java'
+r46 = r46_test.read_text(encoding='utf-8')
+r46 = replace_test_method(r46, 'versionIsR47()', '''    @Test public void versionIsR47() throws Exception {\n        String g=read("build.gradle");\n        assertTrue(g.contains("versionCode 53") || g.contains("versionCode = 53"));\n        assertTrue(g.contains("1.0.0-android-r53-prepare-visit-dossier-search-test"));\n    }''')
+r46_test.write_text(r46, encoding='utf-8')
 
 r53_test = TEST / 'R53SpecialToolsTest.java'
 tests = r53_test.read_text(encoding='utf-8')
