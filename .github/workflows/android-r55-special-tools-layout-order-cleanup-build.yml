@@ -1,0 +1,219 @@
+name: Android R55 Special Tools Layout Order Cleanup Verified Build
+
+on:
+  push:
+    branches:
+      - android-r55-special-tools-layout-order-cleanup-0912
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild exact R54 baseline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+          python android-r3/r53_prepare_visit_search_patch.py
+          python android-r3/r53_test_compat_patch.py
+          python android-r3/r54_ui_export_fix.py
+
+      - name: Freeze all sectors outside the reported R54 UI defects
+        run: |
+          sha256sum \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R30BoundedWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R27ExactWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R47GraphGeometry.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R52GraphLayout.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java \
+            > /tmp/r55-frozen-before.sha
+
+      - name: Apply only R55 reported corrections
+        run: python android-r3/r55_special_tools_layout_order_cleanup.py
+
+      - name: Prove frozen sectors are byte-identical
+        run: |
+          sha256sum \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R30BoundedWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R27ExactWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R47GraphGeometry.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R52GraphLayout.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java \
+            > /tmp/r55-frozen-after.sha
+          diff -u /tmp/r55-frozen-before.sha /tmp/r55-frozen-after.sha
+          echo 'R55_FROZEN_SECTORS_BYTE_IDENTICAL=PASS'
+
+      - name: Audit exact R55 requested behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          b=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          a=(b/'R53SpecialToolsActivity.java').read_text(encoding='utf-8')
+          main=(b/'R6MainActivity.java').read_text(encoding='utf-8')
+          logic=(b/'R53VisitLogic.java').read_text(encoding='utf-8')
+          gradle=Path('android-r3/app/build.gradle').read_text(encoding='utf-8')
+
+          old_pages=['Panoramica','Dati profilo','Dati di emergenza','Esenzioni','Documenti','Cronologia','Diagnosi','Terapie','Medici e specialisti','Confronta','Grafici','Agenda','Monitoraggio','Preferenze','Backup','Aiuto','Logout']
+          for p in old_pages: assert '"'+p+'"' in main, p
+
+          # Same top chrome geometry and inset behavior used by the normal R6 pages.
+          for token in [
+              'root.setFitsSystemWindows(false)',
+              'root.setOnApplyWindowInsetsListener',
+              'header.setPadding(dp(10),dp(5),dp(10),dp(5))',
+              'new LinearLayout.LayoutParams(dp(92),dp(92))',
+              'text("Dossier Sanitario",24,Color.WHITE,true)',
+              'compactButton("☰  Sezioni")',
+              'new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,dp(46))',
+              'profileBar.setPadding(dp(16),dp(9),dp(16),dp(9))',
+              'topbar.setPadding(dp(16),dp(13),dp(16),dp(12))',
+              'content.setPadding(dp(16),dp(4),dp(16),dp(28))',
+              'main.addView(page,new ScrollView.LayoutParams'
+          ]:
+              assert token in a, token
+          assert a.index('page.addView(header)') < a.index('page.addView(profileBar)') < a.index('page.addView(topbar)') < a.index('page.addView(content')
+          assert a.index('page.addView(header)') < a.index('main.addView(page')
+
+          # Export must be last, after choices/requests/medications.
+          export_i=a.index('sectionHeader("Esporta o stampa fascicolo")')
+          assert export_i > a.index('sectionHeader("Documenti associati")')
+          assert export_i > a.index('sectionHeader("Documenti proposti")')
+          assert export_i > a.index('sectionHeader("Altri documenti scelti da te")')
+          assert export_i > a.index('sectionHeader("Cose da chiedere")')
+          assert export_i > a.index('sectionHeader("Farmaci da richiedere")')
+
+          # Medication grouping is read from Preferences, never configured again here.
+          assert 'Finestra farmaci per il medico di base' not in a
+          assert 'windowSpinner=new Spinner' not in a
+          assert 'windowSpinner.setSelection' not in a
+          assert 'globalPreferences(prefs)' in a and 'medicationReorderGroupDays' in a
+          assert 'finestra già impostata nelle Preferenze' in a
+
+          # Existing R54 requirements remain present.
+          for token in ['Scegli tipo di visita','Esporta PDF','application/pdf','new PdfDocument()','button("Stampa")','Esporta documenti originali','Nessuna intelligenza artificiale']:
+              assert token in a, token
+          for forbidden in ['openai','gemini','anthropic','https://','http://']:
+              assert forbidden not in logic.lower(), forbidden
+          for forbidden in ['https://','http://']:
+              assert forbidden not in a.lower(), forbidden
+
+          assert 'versionCode 55' in gradle
+          assert "versionName '1.0.0-android-r55-special-tools-layout-order-cleanup-test'" in gradle
+          assert 'PORTRAIT_HEIGHT_DP = 430' in (b/'R52GraphLayout.java').read_text(encoding='utf-8')
+          assert 'r50CopyVerified(partial, target)' in (b/'R12CloudManager.java').read_text(encoding='utf-8')
+          assert 'private static final String POINTER = "@file:"' in (b/'R30BoundedWindows.java').read_text(encoding='utf-8')
+
+          print('OLD_PAGE_AUDIT=17/17 PASS')
+          print('R55_COMMON_HEADER_PARITY=PASS')
+          print('R55_SCROLLING_HEADER_BEHAVIOR=PASS')
+          print('R55_EXPORT_LAST=PASS')
+          print('R55_REORDER_PREFERENCE_ONLY=PASS')
+          print('R54_REQUIREMENTS_PRESERVED=PASS')
+          print('R52_R53_CORE_FROZEN=PASS')
+          PY
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+
+      - name: Run all JVM regressions including R55
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest
+
+      - name: Verify JVM reports and write R55 release report
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET, pathlib
+          fs=glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not fs: raise SystemExit('missing JVM reports')
+          t=f=e=0
+          for x in fs:
+              r=ET.parse(x).getroot(); t+=int(r.attrib.get('tests',0)); f+=int(r.attrib.get('failures',0)); e+=int(r.attrib.get('errors',0))
+          if t < 234 or f or e: raise SystemExit(f'R55 tests={t} failures={f} errors={e}')
+          report=(f'R55_TESTS=PASS\nJVM_TESTS={t}\nJVM_FAILURES={f}\nJVM_ERRORS={e}\n'
+                  'OLD_PAGE_AUDIT=17/17 PASS\nR55_COMMON_HEADER_PARITY=PASS\nR55_SCROLLING_HEADER_BEHAVIOR=PASS\n'
+                  'R55_EXPORT_LAST=PASS\nR55_REORDER_PREFERENCE_ONLY=PASS\nR54_REQUIREMENTS_PRESERVED=PASS\n'
+                  'R55_FROZEN_SECTORS_BYTE_IDENTICAL=PASS\nR30_BOUNDED_IMPORT_FROZEN=PASS\n'
+                  'R50_SYNC_ENGINE_FROZEN=PASS\nR51_STARTUP_REMINDER_FROZEN=PASS\nR52_GRAPH_HEIGHT_FROZEN=PASS\nR53_VISIT_LOGIC_FROZEN=PASS\n')
+          pathlib.Path('android-r3/r55-build-test-report.txt').write_text(report); print(report)
+          PY
+
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+
+      - name: Restore fixed R13 beta signing identity
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+
+      - name: Build signed R55 APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+
+      - name: Verify R55 APK identity signature permissions and transport
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
+          tr -d ':' < android-r3/apk-verification.txt | tr 'A-Z' 'a-z' | grep -q '9abd08f6382a49975b71ffff1a76fbb3292b508f2a3404fa0e4b2b1f3f2d1a0e'
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='55' versionName='1.0.0-android-r55-special-tools-layout-order-cleanup-test'" android-r3/apk-verification.txt
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO|CALL_PHONE'
+          echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R55_SPECIAL_TOOLS_LAYOUT_ORDER_CLEANUP_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r55-build-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
