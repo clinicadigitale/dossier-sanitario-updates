@@ -41,6 +41,7 @@ jobs:
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53SpecialToolsActivity.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+            android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta/R53SpecialToolsTest.java
             android-r3/app/src/main/AndroidManifest.xml
             android-r3/app/build.gradle
           if-no-files-found: error
