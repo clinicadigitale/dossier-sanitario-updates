@@ -1,0 +1,65 @@
+name: Android R55 Inspect Layout
+
+on:
+  push:
+    branches:
+      - android-r55-special-tools-layout-order-cleanup-0912
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild R54 generated sources
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+          python android-r3/r53_prepare_visit_search_patch.py
+          python android-r3/r53_test_compat_patch.py
+          python android-r3/r54_ui_export_fix.py
+      - name: Print relevant layout source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          base=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          for fn in ['R6MainActivity.java','R53SpecialToolsActivity.java']:
+              p=base/fn
+              lines=p.read_text(encoding='utf-8').splitlines()
+              print('\n===== '+fn+' =====')
+              needles=['Sezioni','setContentView','NestedScroll','ScrollView','Toolbar','renderPage','renderPanoramica','renderAgenda','buildPreparePage','buildSearchPage','Esporta PDF','Farmaci','raggrupp','windowDays']
+              hits=set()
+              for i,line in enumerate(lines):
+                  if any(n.lower() in line.lower() for n in needles):
+                      for j in range(max(0,i-18), min(len(lines),i+35)):
+                          hits.add(j)
+              start=None
+              last=None
+              for j in sorted(hits):
+                  if start is None:
+                      start=last=j
+                  elif j>last+1:
+                      print(f'--- lines {start+1}-{last+1} ---')
+                      for k in range(start,last+1): print(f'{k+1:04d}: {lines[k]}')
+                      start=last=j
+                  else:
+                      last=j
+              if start is not None:
+                  print(f'--- lines {start+1}-{last+1} ---')
+                  for k in range(start,last+1): print(f'{k+1:04d}: {lines[k]}')
+          PY
