@@ -1,0 +1,47 @@
+name: Android R54 Inspect Generated Source
+
+on:
+  push:
+    branches:
+      - android-r54-r53-ui-export-fixes-0912
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild exact R52 baseline and R53 tools
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+          python android-r3/r53_prepare_visit_search_patch.py
+          python android-r3/r53_test_compat_patch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r54-generated-source-inspection
+          path: |
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53SpecialToolsActivity.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
+            android-r3/app/src/main/AndroidManifest.xml
+            android-r3/app/build.gradle
+          if-no-files-found: error
+          retention-days: 1
