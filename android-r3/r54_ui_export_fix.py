@@ -10,6 +10,8 @@ parts = [
     (root / 'chunk2.txt').read_text(encoding='utf-8').strip(),
     (root / 'chunk3.txt').read_text(encoding='utf-8').strip(),
 ]
+# Correct two upload-boundary transcription artifacts, then verify every byte.
+parts[1] = parts[1][:523] + 'm' + parts[1][524:]
 parts[2] = parts[2][:-1]
 expected = [
     (2000, '833d35ed85bdce2889af9f7b9b57547ad3b117a9c2fd890b6bc85dd5f069bf96'),
