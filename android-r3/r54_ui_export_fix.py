@@ -27,3 +27,13 @@ for i, part in enumerate(parts):
 payload = ''.join(parts)
 source = zlib.decompress(base64.b64decode(payload)).decode('utf-8')
 exec(compile(source, 'r54_ui_export_fix_payload.py', 'exec'))
+
+# Java 8 requires an escaped backslash inside the regex string literal.
+activity_path = Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53SpecialToolsActivity.java')
+activity = activity_path.read_text(encoding='utf-8')
+old = r'raw.split("\s+")'
+new = r'raw.split("\\s+")'
+if activity.count(old) != 1:
+    raise SystemExit(f'R54 expected one Java regex escape target, found {activity.count(old)}')
+activity_path.write_text(activity.replace(old, new, 1), encoding='utf-8')
+print('R54 Java 8 regex escaping applied')
