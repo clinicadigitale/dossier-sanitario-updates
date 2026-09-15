@@ -101,6 +101,14 @@ for p in Path('android-r3/app/src/test').rglob('*.java'):
     s = p.read_text(encoding='utf-8')
     ns = s.replace('versionCode 56', 'versionCode 57').replace('versionCode = 56', 'versionCode = 57')
     ns = ns.replace('1.0.0-android-r56-modern-media-parity-test', '1.0.0-android-r57-sync-crash-media-fix-test')
+    # R57 intentionally supersedes only the R46 GCM decrypt implementation.
+    # Keep the old regression intent (streaming + real encrypted-byte progress),
+    # but point it at the bounded authenticated implementation.
+    ns = ns.replace('R46Dsl5Decryptor.java', 'R57BoundedGcmDecryptor.java')
+    ns = ns.replace('R46Dsl5Decryptor.decrypt', 'R57BoundedGcmDecryptor.decrypt')
+    ns = ns.replace('cipher.update(buffer, 0, n)', 'ctr.update(cipherBuf, 0, want, plainBuf, 0)')
+    ns = ns.replace('cipher.doFinal()', 'ctr.doFinal()')
+    ns = ns.replace('progress.onBytes(done, total)', 'progress.onBytes(done, Math.max(1L, cipherLength))')
     if ns != s:
         p.write_text(ns, encoding='utf-8')
 
@@ -109,9 +117,16 @@ TEST.mkdir(parents=True, exist_ok=True)
 
 import static org.junit.Assert.*;
 import org.junit.Test;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Base64;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class R57SyncCrashMediaFixTest {
     private String read(String p) throws Exception { return new String(Files.readAllBytes(Paths.get(p)), StandardCharsets.UTF_8); }
@@ -122,6 +137,28 @@ public class R57SyncCrashMediaFixTest {
         byte[] ciphertext=hex("0388dace60b6a392f328c2b971b2fe78");
         byte[] expectedTag=hex("ab6e47d42cec13bdf53a67b21257bddf");
         assertArrayEquals(expectedTag, R57BoundedGcmDecryptor.computeTagForTest(key,iv,ciphertext));
+    }
+
+    @Test public void boundedDecryptReadsExistingDsl5FormatExactly() throws Exception {
+        byte[] key=hex("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+        byte[] iv=hex("101112131415161718191a1b");
+        byte[] plain=new byte[2*1024*1024+37];
+        for(int i=0;i<plain.length;i++) plain[i]=(byte)(i*31+7);
+        Cipher gcm=Cipher.getInstance("AES/GCM/NoPadding");
+        gcm.init(Cipher.ENCRYPT_MODE,new SecretKeySpec(key,"AES"),new GCMParameterSpec(128,iv));
+        byte[] packedPayload=gcm.doFinal(plain);
+        String meta="{\"format\":\"DSL5-AESGCM\",\"version\":1,\"iv\":\""+Base64.getEncoder().encodeToString(iv)+"\"}";
+        byte[] mb=meta.getBytes(StandardCharsets.UTF_8);
+        File source=File.createTempFile("r57dsl5",".bin");
+        File target=File.createTempFile("r57plain",".bin"); target.delete();
+        try(FileOutputStream out=new FileOutputStream(source)){
+            out.write("DSL5ENC1".getBytes(StandardCharsets.US_ASCII));
+            out.write(ByteBuffer.allocate(4).putInt(mb.length).array()); out.write(mb); out.write(packedPayload);
+        }
+        try {
+            R57BoundedGcmDecryptor.decrypt(source,target,key,null);
+            assertArrayEquals(plain,Files.readAllBytes(target.toPath()));
+        } finally { source.delete(); target.delete(); }
     }
 
     @Test public void syncUsesBoundedAuthenticatedDecryptAndThrowableGuard() throws Exception {
