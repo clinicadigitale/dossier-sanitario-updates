@@ -81,26 +81,20 @@ jobs:
           special=(b/'R53SpecialToolsActivity.java').read_text(encoding='utf-8')
           gradle=Path('android-r3/app/build.gradle').read_text(encoding='utf-8')
           manifest=Path('android-r3/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
-
-          assert '"Imaging e media"' in main
-          assert 'R56MediaActivity.class' in main
+          assert '"Imaging e media"' in main and 'R56MediaActivity.class' in main
           assert 'dicom_studies.json' in r27 and 'immagini_associate.json' in r27
           assert 'static JSONArray dicomStudies' in r27 and 'static JSONArray mediaAttachments' in r27
           assert 'Rendi disponibile offline' in media
           assert 'Spazio richiesto:' in media and 'Spazio disponibile:' in media and 'Spazio residuo previsto:' in media
-          assert 'ACTION_OPEN_DOCUMENT_TREE' in media
-          assert 'deleteTree(offlineDir(study))' in media
+          assert 'ACTION_OPEN_DOCUMENT_TREE' in media and 'deleteTree(offlineDir(study))' in media
           assert 'SAFETY_RESERVE_BYTES' in storage
           assert 'Clinica Digitale' in main and 'Clinica Digitale' in special
           assert 'dp(56), dp(56)' in main or 'dp(56),dp(56)' in main
           assert '.R56MediaActivity' in manifest
           assert 'versionCode 56' in gradle
           assert "versionName '1.0.0-android-r56-modern-media-parity-test'" in gradle
-
-          # No broad storage/media permissions are introduced.
           for forbidden in ['READ_EXTERNAL_STORAGE','WRITE_EXTERNAL_STORAGE','MANAGE_EXTERNAL_STORAGE','READ_MEDIA_IMAGES','READ_MEDIA_VIDEO','READ_MEDIA_AUDIO']:
               assert forbidden not in manifest, forbidden
-
           print('R56_MODERN_UI=PASS')
           print('R56_DICOM_METADATA_PARITY=PASS')
           print('R56_STORAGE_PREFLIGHT=PASS')
@@ -112,11 +106,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/platform-tools" >> "$GITHUB_PATH"
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
       - name: Install Android SDK 35
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
