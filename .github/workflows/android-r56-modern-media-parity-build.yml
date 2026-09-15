@@ -1,0 +1,187 @@
+name: Android R56 Modern Media Parity Verified Build
+
+on:
+  push:
+    branches:
+      - android-r56-modern-media-parity-0915
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rebuild exact R55 baseline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+          python android-r3/r53_prepare_visit_search_patch.py
+          python android-r3/r53_test_compat_patch.py
+          python android-r3/r54_ui_export_fix.py
+          python android-r3/r55_special_tools_layout_order_cleanup.py
+
+      - name: Freeze established engines before R56
+        run: |
+          sha256sum \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R30BoundedWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R47GraphGeometry.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R52GraphLayout.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R34BiometricAuth.java \
+            > /tmp/r56-frozen-before.sha
+
+      - name: Apply R56 modern media parity
+        run: python android-r3/r56_modern_media_parity_patch.py
+
+      - name: Prove frozen engines are byte-identical
+        run: |
+          sha256sum \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12CloudManager.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R12Crypto.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R30BoundedWindows.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R47GraphGeometry.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R52GraphLayout.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java \
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R34BiometricAuth.java \
+            > /tmp/r56-frozen-after.sha
+          diff -u /tmp/r56-frozen-before.sha /tmp/r56-frozen-after.sha
+          echo 'R56_FROZEN_ENGINES_BYTE_IDENTICAL=PASS'
+
+      - name: Audit R56 scope
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          b=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta')
+          main=(b/'R6MainActivity.java').read_text(encoding='utf-8')
+          r27=(b/'R27ExactWindows.java').read_text(encoding='utf-8')
+          media=(b/'R56MediaActivity.java').read_text(encoding='utf-8')
+          storage=(b/'R56StoragePolicy.java').read_text(encoding='utf-8')
+          special=(b/'R53SpecialToolsActivity.java').read_text(encoding='utf-8')
+          gradle=Path('android-r3/app/build.gradle').read_text(encoding='utf-8')
+          manifest=Path('android-r3/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
+
+          assert '"Imaging e media"' in main
+          assert 'R56MediaActivity.class' in main
+          assert 'dicom_studies.json' in r27 and 'immagini_associate.json' in r27
+          assert 'static JSONArray dicomStudies' in r27 and 'static JSONArray mediaAttachments' in r27
+          assert 'Rendi disponibile offline' in media
+          assert 'Spazio richiesto:' in media and 'Spazio disponibile:' in media and 'Spazio residuo previsto:' in media
+          assert 'ACTION_OPEN_DOCUMENT_TREE' in media
+          assert 'deleteTree(offlineDir(study))' in media
+          assert 'SAFETY_RESERVE_BYTES' in storage
+          assert 'Clinica Digitale' in main and 'Clinica Digitale' in special
+          assert 'dp(56), dp(56)' in main or 'dp(56),dp(56)' in main
+          assert '.R56MediaActivity' in manifest
+          assert 'versionCode 56' in gradle
+          assert "versionName '1.0.0-android-r56-modern-media-parity-test'" in gradle
+
+          # No broad storage/media permissions are introduced.
+          for forbidden in ['READ_EXTERNAL_STORAGE','WRITE_EXTERNAL_STORAGE','MANAGE_EXTERNAL_STORAGE','READ_MEDIA_IMAGES','READ_MEDIA_VIDEO','READ_MEDIA_AUDIO']:
+              assert forbidden not in manifest, forbidden
+
+          print('R56_MODERN_UI=PASS')
+          print('R56_DICOM_METADATA_PARITY=PASS')
+          print('R56_STORAGE_PREFLIGHT=PASS')
+          print('R56_SAF_ONLY=PASS')
+          print('R56_NO_AUTOMATIC_HEAVY_MEDIA_COPY=PASS')
+          PY
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore official Dossier icon
+        run: |
+          mkdir -p android-r3/app/src/main/res/drawable-nodpi
+          base64 -d android-r3/.ci/dossier-icon-r4.b64 > android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+          test -s android-r3/app/src/main/res/drawable-nodpi/dossier_sanitario_raw.webp
+
+      - name: Run JVM regressions including R56
+        run: gradle -p android-r3 --no-daemon :app:testReleaseUnitTest
+
+      - name: Verify JVM reports and write R56 release report
+        run: |
+          python - <<'PY'
+          import glob, xml.etree.ElementTree as ET, pathlib
+          fs=glob.glob('android-r3/app/build/test-results/testReleaseUnitTest/TEST-*.xml')
+          if not fs: raise SystemExit('missing JVM reports')
+          t=f=e=0
+          for x in fs:
+              r=ET.parse(x).getroot(); t+=int(r.attrib.get('tests',0)); f+=int(r.attrib.get('failures',0)); e+=int(r.attrib.get('errors',0))
+          if t < 237 or f or e: raise SystemExit(f'R56 tests={t} failures={f} errors={e}')
+          report=(f'R56_TESTS=PASS\nJVM_TESTS={t}\nJVM_FAILURES={f}\nJVM_ERRORS={e}\n'
+                  'R56_MODERN_UI=PASS\nR56_DICOM_METADATA_PARITY=PASS\nR56_STORAGE_PREFLIGHT=PASS\n'
+                  'R56_SAF_ONLY=PASS\nR56_NO_AUTOMATIC_HEAVY_MEDIA_COPY=PASS\n'
+                  'R56_FROZEN_ENGINES_BYTE_IDENTICAL=PASS\nR30_BOUNDED_IMPORT_FROZEN=PASS\n'
+                  'R50_SYNC_ENGINE_FROZEN=PASS\nR52_GRAPH_HEIGHT_FROZEN=PASS\nR53_VISIT_LOGIC_FROZEN=PASS\n')
+          pathlib.Path('android-r3/r56-build-test-report.txt').write_text(report); print(report)
+          PY
+
+      - name: Add pinned Android cloud transport
+        run: |
+          mkdir -p android-r3/app/src/main/jniLibs/arm64-v8a
+          curl --fail --location --retry 3 --retry-delay 2 https://beta.rclone.org/v1.75.0/testbuilds/rclone-android-21-armv8a.gz --output /tmp/rclone-android.gz
+          gzip -dc /tmp/rclone-android.gz > android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+          chmod 755 android-r3/app/src/main/jniLibs/arm64-v8a/librclone.so
+
+      - name: Restore fixed R13 beta signing identity
+        run: |
+          base64 -d android-r3/.ci/beta-keystore.b64 > android-r3/beta-test.jks
+          chmod 600 android-r3/beta-test.jks
+
+      - name: Build signed R56 APK
+        run: gradle -p android-r3 --no-daemon :app:assembleRelease
+
+      - name: Verify R56 APK identity signature permissions and transport
+        run: |
+          APK=android-r3/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | tee android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -n 12 | tee -a android-r3/apk-verification.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | tee -a android-r3/apk-verification.txt
+          unzip -l "$APK" | grep 'lib/arm64-v8a/librclone.so' | tee -a android-r3/apk-verification.txt
+          tr -d ':' < android-r3/apk-verification.txt | tr 'A-Z' 'a-z' | grep -q '9abd08f6382a49975b71ffff1a76fbb3292b508f2a3404fa0e4b2b1f3f2d1a0e'
+          grep -q "package: name='it.dossiersanitario.clinicadigitale.beta' versionCode='56' versionName='1.0.0-android-r56-modern-media-parity-test'" android-r3/apk-verification.txt
+          ! "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" | grep -Eq 'READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO|READ_CONTACTS|ACCESS_FINE_LOCATION|RECORD_AUDIO|CALL_PHONE'
+          echo "SIZE=$(stat -c%s "$APK")" | tee -a android-r3/apk-verification.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_Android_R56_MODERN_MEDIA_PARITY_VERIFIED_APK
+          path: |
+            android-r3/app/build/outputs/apk/release/app-release.apk
+            android-r3/apk-verification.txt
+            android-r3/r56-build-test-report.txt
+          if-no-files-found: error
+          retention-days: 1
