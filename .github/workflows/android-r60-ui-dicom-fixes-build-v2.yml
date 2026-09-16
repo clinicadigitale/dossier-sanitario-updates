@@ -62,6 +62,9 @@ jobs:
       - name: Apply R60 graphical UI and DICOM fixes
         run: python android-r3/r60_ui_dicom_fixes_patch.py
 
+      - name: Align inherited tests with intentional R60 supersessions
+        run: python android-r3/r60_test_compat_patch.py
+
       - name: Prove unrelated approved engines are byte-identical
         run: |
           sha256sum \
