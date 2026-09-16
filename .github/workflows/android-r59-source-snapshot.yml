@@ -45,9 +45,15 @@ jobs:
           path: |
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53SpecialToolsActivity.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R53VisitLogic.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R56MediaActivity.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R27ExactWindows.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R30BoundedWindows.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R37ClinicalSeries.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R40ClinicalSeries.java
             android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R26ChartView.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R33PressureChartView.java
+            android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R33WeightJourneyChartView.java
             android-r3/app/src/main/AndroidManifest.xml
             android-r3/app/build.gradle
           retention-days: 1
