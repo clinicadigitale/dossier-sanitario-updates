@@ -1,0 +1,47 @@
+name: Android R60 Pressure Source Snapshot
+
+on:
+  push:
+    branches:
+      - android-r60-ui-dicom-fixes-0916
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild exact R59 baseline
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          y=Path('.github/workflows/android-r47-sync-crash-graph-layout-build.yml').read_text(encoding='utf-8')
+          cmds=re.findall(r'^\s*python (android-r3/[^\s]+\.py)\s*$', y, flags=re.M)
+          if not cmds or not cmds[-1].endswith('r47_compile_compat_patch.py'):
+              raise SystemExit('R47 patch chain not found')
+          for p in cmds:
+              subprocess.check_call(['python', p])
+          PY
+          python android-r3/r50_r47_height_sync_finalize_fix.py
+          python android-r3/r50_test_compat_patch.py
+          python android-r3/r51_graph_height_ticks_sync_reminder_patch.py
+          python android-r3/r51_test_compat_patch.py
+          python android-r3/r52_all_graphs_portrait_landscape_height_fix.py
+          python android-r3/r52_test_compat_patch.py
+          python android-r3/r53_prepare_visit_search_patch.py
+          python android-r3/r53_test_compat_patch.py
+          python android-r3/r54_ui_export_fix.py
+          python android-r3/r55_special_tools_layout_order_cleanup.py
+          python android-r3/r56_modern_media_parity_patch.py
+          python android-r3/r57_sync_crash_media_fix.py
+          python android-r3/r58_modern_ui_media_patch_v2.py
+          python android-r3/r59_full_modern_parity_patch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: R60_R59_PRESSURE_SOURCE
+          path: android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R33PressureChartView.java
+          retention-days: 1
