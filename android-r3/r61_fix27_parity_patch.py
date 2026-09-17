@@ -27,4 +27,14 @@ if 'import android.widget.Spinner;' not in s:
     s=s.replace('import android.widget.ScrollView;','import android.widget.ScrollView;\nimport android.widget.Spinner;')
 main.write_text(s,encoding='utf-8')
 
+# Align inherited tests only where R61 intentionally supersedes version identity
+# or the approved family-Agenda wording/layout. Stage these test-only changes so
+# the exact production-source scope audit remains focused on R61 source files.
+subprocess.check_call(['python','android-r3/r61_test_compat_patch.py'])
+test_root='android-r3/app/src/test/java/it/dossiersanitario/clinicadigitale/beta'
+tracked=subprocess.check_output(['git','diff','--name-only','--',test_root],text=True).splitlines()
+if tracked:
+    subprocess.check_call(['git','add',*tracked])
+    subprocess.check_call(['git','diff','--cached','--check'])
+
 print('R61_FIX27_PARITY_PATCH=APPLIED')
