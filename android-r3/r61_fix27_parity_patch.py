@@ -17,4 +17,14 @@ with tempfile.NamedTemporaryFile('w',suffix='.patch',delete=False,encoding='utf-
     patch=f.name
 subprocess.check_call(['git','apply','--check',patch])
 subprocess.check_call(['git','apply',patch])
+
+# R61 uses Android widgets that were not present in the inherited import set.
+main=Path('android-r3/app/src/main/java/it/dossiersanitario/clinicadigitale/beta/R6MainActivity.java')
+s=main.read_text(encoding='utf-8')
+if 'import android.widget.ArrayAdapter;' not in s:
+    s=s.replace('import android.widget.Button;','import android.widget.ArrayAdapter;\nimport android.widget.Button;')
+if 'import android.widget.Spinner;' not in s:
+    s=s.replace('import android.widget.ScrollView;','import android.widget.ScrollView;\nimport android.widget.Spinner;')
+main.write_text(s,encoding='utf-8')
+
 print('R61_FIX27_PARITY_PATCH=APPLIED')
