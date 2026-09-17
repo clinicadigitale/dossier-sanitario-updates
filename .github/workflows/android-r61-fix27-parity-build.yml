@@ -77,6 +77,11 @@ jobs:
             android-r3/app/src/main/AndroidManifest.xml \
             > /tmp/r61-frozen-before.sha
 
+      - name: Establish ephemeral R60 comparison baseline
+        run: |
+          git add android-r3/app
+          git -c user.name='R61 CI' -c user.email='ci@local.invalid' commit -m 'Ephemeral R60 generated baseline'
+
       - name: Apply R61 FIX27 parity patch
         run: python android-r3/r61_fix27_parity_patch.py
 
