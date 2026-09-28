@@ -57,7 +57,11 @@ async function signEntitlement(env, row) {
     source: String(row.source || "manual"),
     issuedAt: now,
     validUntil: row.valid_until ? String(row.valid_until) : "",
-    refreshAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    refreshAfter: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    notAfter: new Date(Math.min(
+      row.valid_until && Number.isFinite(Date.parse(row.valid_until)) ? Date.parse(row.valid_until) : Number.POSITIVE_INFINITY,
+      Date.now() + 14 * 24 * 60 * 60 * 1000
+    )).toISOString(),
   };
   const raw = encoder.encode(JSON.stringify(payload));
   const signature = await crypto.subtle.sign(
@@ -97,6 +101,8 @@ function corsHeaders(request, env) {
   const allowed = new Set([
     String(env.PUBLIC_SITE_ORIGIN || "https://dossiersanitario.it"),
     "https://www.dossiersanitario.it",
+    "http://127.0.0.1:8896",
+    "http://localhost:8896",
   ]);
   return allowed.has(origin)
     ? {
