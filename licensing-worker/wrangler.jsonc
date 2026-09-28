@@ -1,0 +1,16 @@
+{
+  "name": "clinica-digitale-licenze",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-28",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "clinica-digitale-licenze",
+      "database_id": "INSERIRE_ID_D1"
+    }
+  ],
+  "vars": {
+    "PUBLIC_SITE_ORIGIN": "https://dossiersanitario.it",
+    "PROMO_END": "2027-02-15T00:00:00+01:00"
+  }
+}
