@@ -234,12 +234,51 @@ function planPricing(env) {
 
 function adminHtml() {
   return `<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinica Digitale - Gestore licenze</title><style>
-  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;color:#17342e;margin:0}.wrap{max-width:960px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #d9e7e2;border-radius:18px;padding:22px;margin:16px 0}label{display:grid;gap:6px;font-weight:700;margin:12px 0}input,select,textarea,button{font:inherit;padding:11px 12px;border-radius:10px;border:1px solid #bfd3cc}button{cursor:pointer;font-weight:800;background:#2f796d;color:#fff;border:0}.danger{background:#b42318}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.out{white-space:pre-wrap;background:#10231f;color:#dff3ed;padding:16px;border-radius:12px;min-height:80px}@media(max-width:700px){.row{grid-template-columns:1fr}}
-  </style><div class="wrap"><h1>Gestore licenze Clinica Digitale</h1><p>Il token amministratore non viene salvato dal browser.</p><div class="card"><label>Token amministratore<input id="key" type="password" autocomplete="off"></label><div class="row"><label>ID Dossier<input id="dossier"></label><label>E-mail account<input id="email" type="email"></label></div><div class="row"><label>Piano<select id="plan"><option>FREE</option><option>MEDIUM</option><option>FULL</option></select></label><label>Origine<select id="source"><option value="manual">Manuale</option><option value="gift">Omaggio</option><option value="tester">Tester</option><option value="staff">Staff</option><option value="promo">Promozione</option><option value="paid">Pagamento</option></select></label></div><label>Validità fino a (opzionale)<input id="until" type="datetime-local"></label><label>Nota<textarea id="note" rows="3"></textarea></label><p><button id="grant">Assegna / aggiorna</button> <button id="revoke" class="danger">Revoca</button></p></div><div class="card"><div class="row"><label>Cerca<input id="q"></label><div style="align-self:end"><button id="search">Cerca licenze</button></div></div><div id="out" class="out"></div></div></div><script>
-  const $=id=>document.getElementById(id);const headers=()=>({'content-type':'application/json','authorization':'Bearer '+$('key').value});const show=x=>$('out').textContent=JSON.stringify(x,null,2);
-  $('grant').onclick=async()=>{const valid=$('until').value?new Date($('until').value).toISOString():'';show(await (await fetch('/v1/admin/entitlements',{method:'POST',headers:headers(),body:JSON.stringify({dossierId:$('dossier').value,accountEmail:$('email').value,plan:$('plan').value,source:$('source').value,note:$('note').value,validUntil:valid})})).json())};
-  $('revoke').onclick=async()=>show(await (await fetch('/v1/admin/revoke',{method:'POST',headers:headers(),body:JSON.stringify({dossierId:$('dossier').value,note:$('note').value})})).json());
-  $('search').onclick=async()=>show(await (await fetch('/v1/admin/entitlements?q='+encodeURIComponent($('q').value),{headers:headers()})).json());
+  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;color:#17342e;margin:0}.wrap{max-width:960px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #d9e7e2;border-radius:18px;padding:22px;margin:16px 0}label{display:grid;gap:6px;font-weight:700;margin:12px 0}input,select,textarea,button{font:inherit;padding:11px 12px;border-radius:10px;border:1px solid #bfd3cc}button{cursor:pointer;font-weight:800;background:#2f796d;color:#fff;border:0}.danger{background:#b42318}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.status{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;font-weight:800;margin:14px 0}.status.hidden{display:none}.status.ok{background:#e7f6ec;color:#166534;border:1px solid #a7dfb7}.status.err{background:#fdeaea;color:#991b1b;border:1px solid #efb0b0}.lamp{width:14px;height:14px;border-radius:50%;flex:0 0 14px;background:#9ca3af}.status.ok .lamp{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}.status.err .lamp{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.14)}details{margin-top:12px}.out{white-space:pre-wrap;background:#10231f;color:#dff3ed;padding:16px;border-radius:12px;min-height:80px;max-height:360px;overflow:auto;font-size:13px}@media(max-width:700px){.row{grid-template-columns:1fr}}
+  </style><div class="wrap"><h1>Gestore licenze Clinica Digitale</h1><p>Il token amministratore non viene salvato dal browser.</p><div class="card"><label>Token amministratore<input id="key" type="password" autocomplete="off"></label><div class="row"><label>ID Dossier<input id="dossier"></label><label>E-mail account<input id="email" type="email"></label></div><div class="row"><label>Piano<select id="plan"><option>FREE</option><option>MEDIUM</option><option>FULL</option></select></label><label>Origine<select id="source"><option value="manual">Manuale</option><option value="gift">Omaggio</option><option value="tester">Tester</option><option value="staff">Staff</option><option value="promo">Promozione</option><option value="paid">Pagamento</option></select></label></div><label>Validità fino a (opzionale)<input id="until" type="datetime-local"></label><label>Nota<textarea id="note" rows="3"></textarea></label><p><button id="grant">Assegna / aggiorna</button> <button id="revoke" class="danger">Revoca</button></p></div><div class="card"><div class="row"><label>Cerca<input id="q"></label><div style="align-self:end"><button id="search">Cerca licenze</button></div></div><div id="status" class="status hidden"><span class="lamp"></span><span id="statusText"></span></div><details id="technical"><summary>Dettagli tecnici</summary><div id="out" class="out"></div></details></div></div><script>
+  const $=id=>document.getElementById(id);
+  const headers=()=>({'content-type':'application/json','authorization':'Bearer '+$('key').value});
+  function render(result, action){
+    $('out').textContent=JSON.stringify(result,null,2);
+    const st=$('status');
+    st.classList.remove('hidden','ok','err');
+    if(result && result.ok){
+      st.classList.add('ok');
+      let msg='Operazione completata correttamente.';
+      if(action==='grant'){
+        const e=result.entitlement||{};
+        msg='LICENZA ATTIVA: '+(e.plan||'')+' assegnata a '+(e.dossier_id||'Dossier')+'.';
+      } else if(action==='revoke'){
+        msg='LICENZA REVOCATA correttamente.';
+      } else if(action==='search'){
+        const n=Array.isArray(result.entitlements)?result.entitlements.length:0;
+        msg=n===1?'1 licenza trovata.':n+' licenze trovate.';
+      }
+      $('statusText').textContent=msg;
+      $('technical').open=false;
+    }else{
+      st.classList.add('err');
+      $('statusText').textContent='ERRORE: '+((result&&result.error)||'operazione non riuscita')+'.';
+      $('technical').open=true;
+    }
+  }
+  async function call(url,options,action){
+    try{
+      const res=await fetch(url,options);
+      let data;
+      try{data=await res.json()}catch{data={ok:false,error:'risposta_non_valida'}}
+      if(!res.ok && data.ok!==false) data.ok=false;
+      render(data,action);
+    }catch(e){
+      render({ok:false,error:'connessione_non_disponibile',detail:String(e)},action);
+    }
+  }
+  $('grant').onclick=async()=>{
+    const valid=$('until').value?new Date($('until').value).toISOString():'';
+    await call('/v1/admin/entitlements',{method:'POST',headers:headers(),body:JSON.stringify({dossierId:$('dossier').value,accountEmail:$('email').value,plan:$('plan').value,source:$('source').value,note:$('note').value,validUntil:valid})},'grant');
+  };
+  $('revoke').onclick=async()=>await call('/v1/admin/revoke',{method:'POST',headers:headers(),body:JSON.stringify({dossierId:$('dossier').value,note:$('note').value})},'revoke');
+  $('search').onclick=async()=>await call('/v1/admin/entitlements?q='+encodeURIComponent($('q').value),{headers:headers()},'search');
   </script></html>`;
 }
 
