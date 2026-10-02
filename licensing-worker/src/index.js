@@ -89,6 +89,124 @@ function cleanEmail(value) {
   return s;
 }
 
+function cleanInstallationId(value) {
+  const s = String(value || "").trim();
+  if (!/^[A-Za-z0-9._:-]{8,160}$/.test(s)) return "";
+  return s;
+}
+
+function cleanVersion(value) {
+  return String(value || "").trim().slice(0, 40);
+}
+
+function cleanPlatform(value) {
+  return String(value || "").trim().slice(0, 40);
+}
+
+async function ensureUsageSchema(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS usage_installations (
+      dossier_id TEXT NOT NULL,
+      installation_id TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'FREE' CHECK (plan IN ('FREE','MEDIUM','FULL')),
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      launch_count INTEGER NOT NULL DEFAULT 1,
+      app_version TEXT NOT NULL DEFAULT '',
+      platform TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (dossier_id, installation_id)
+    )
+  `).run();
+  await env.DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_usage_last_seen ON usage_installations(last_seen)"
+  ).run();
+}
+
+async function effectivePlanForDossier(env, dossierId) {
+  const row = await env.DB.prepare(
+    "SELECT plan, status, valid_until FROM entitlements WHERE dossier_id = ?1"
+  ).bind(dossierId).first();
+  if (!row || row.status !== "active" || expired(row.valid_until)) return "FREE";
+  const plan = String(row.plan || "FREE").toUpperCase();
+  return PLANS.has(plan) ? plan : "FREE";
+}
+
+async function usagePing(request, env) {
+  await ensureUsageSchema(env);
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const dossierId = cleanDossierId(body.dossierId);
+  const installationId = cleanInstallationId(body.installationId);
+  const appVersion = cleanVersion(body.appVersion);
+  const platform = cleanPlatform(body.platform);
+  if (!dossierId || !installationId) return json({ ok: false, error: "usage_id_invalid" }, 400);
+
+  const now = new Date().toISOString();
+  const plan = await effectivePlanForDossier(env, dossierId);
+  await env.DB.prepare(`
+    INSERT INTO usage_installations(
+      dossier_id, installation_id, plan, first_seen, last_seen, launch_count, app_version, platform
+    )
+    VALUES(?1, ?2, ?3, ?4, ?4, 1, ?5, ?6)
+    ON CONFLICT(dossier_id, installation_id) DO UPDATE SET
+      plan=excluded.plan,
+      last_seen=excluded.last_seen,
+      launch_count=usage_installations.launch_count + 1,
+      app_version=excluded.app_version,
+      platform=excluded.platform
+  `).bind(dossierId, installationId, plan, now, appVersion, platform).run();
+  return json({ ok: true });
+}
+
+async function listUsage(request, env) {
+  if (!adminAuthorized(request, env)) return json({ ok: false, error: "unauthorized" }, 401);
+  await ensureUsageSchema(env);
+  const url = new URL(request.url);
+  const q = String(url.searchParams.get("q") || "").trim().toLowerCase();
+  const where = q ? "WHERE lower(u.dossier_id) LIKE ?1" : "";
+  const sql = `
+    SELECT
+      u.dossier_id,
+      MIN(u.first_seen) AS first_seen,
+      MAX(u.last_seen) AS last_seen,
+      SUM(u.launch_count) AS launch_count,
+      COUNT(*) AS installations,
+      CASE MAX(CASE u.plan WHEN 'FULL' THEN 2 WHEN 'MEDIUM' THEN 1 ELSE 0 END)
+        WHEN 2 THEN 'FULL' WHEN 1 THEN 'MEDIUM' ELSE 'FREE' END AS plan,
+      MAX(u.app_version) AS app_version,
+      MAX(u.platform) AS platform
+    FROM usage_installations u
+    ${where}
+    GROUP BY u.dossier_id
+    ORDER BY last_seen DESC
+    LIMIT 500
+  `;
+  const result = q
+    ? await env.DB.prepare(sql).bind(`%${q}%`).all()
+    : await env.DB.prepare(sql).all();
+
+  const now = Date.now();
+  const usage = (result.results || []).map(row => {
+    const lastMs = Date.parse(row.last_seen || "");
+    const daysInactive = Number.isFinite(lastMs) ? Math.max(0, Math.floor((now - lastMs) / 86400000)) : null;
+    const launches = Number(row.launch_count || 0);
+    let activity = "inactive";
+    if (launches <= 1) activity = "single_launch";
+    else if (daysInactive !== null && daysInactive <= 7) activity = "active";
+    return { ...row, launch_count: launches, installations: Number(row.installations || 0), daysInactive, activity };
+  });
+  return json({
+    ok: true,
+    summary: {
+      dossiers: usage.length,
+      active7d: usage.filter(x => x.activity === "active").length,
+      singleLaunch: usage.filter(x => x.activity === "single_launch").length,
+      inactiveOver7d: usage.filter(x => x.activity === "inactive").length,
+    },
+    usage,
+  });
+}
+
 function adminAuthorized(request, env) {
   const expected = String(env.ADMIN_API_KEY || "");
   if (!expected) return false;
@@ -240,8 +358,8 @@ function planPricing(env) {
 
 function adminHtml() {
   return `<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinica Digitale - Gestore licenze</title><style>
-  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;color:#17342e;margin:0}.wrap{max-width:960px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #d9e7e2;border-radius:18px;padding:22px;margin:16px 0}label{display:grid;gap:6px;font-weight:700;margin:12px 0}input,select,textarea,button{font:inherit;padding:11px 12px;border-radius:10px;border:1px solid #bfd3cc}button{cursor:pointer;font-weight:800;background:#2f796d;color:#fff;border:0}.danger{background:#b42318}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.search-block{display:grid;gap:6px}.search-block>label{margin:0}.search-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:stretch}.search-controls input,.search-controls button{height:44px;box-sizing:border-box;margin:0}.search-controls button{display:flex;align-items:center;justify-content:center;white-space:nowrap}.status{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;font-weight:800;margin:14px 0}.status.hidden{display:none}.status.ok{background:#e7f6ec;color:#166534;border:1px solid #a7dfb7}.status.err{background:#fdeaea;color:#991b1b;border:1px solid #efb0b0}.lamp{width:14px;height:14px;border-radius:50%;flex:0 0 14px;background:#9ca3af}.status.ok .lamp{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}.status.err .lamp{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.14)}details{margin-top:12px}.out{white-space:pre-wrap;background:#10231f;color:#dff3ed;padding:16px;border-radius:12px;min-height:80px;max-height:360px;overflow:auto;font-size:13px}@media(max-width:700px){.row{grid-template-columns:1fr}.search-controls{grid-template-columns:1fr}.search-controls button{width:100%}}
-  </style><div class="wrap"><h1>Gestore licenze Clinica Digitale</h1><p>Il token amministratore non viene salvato dal browser.</p><div class="card"><label>Token amministratore<input id="key" type="password" autocomplete="off"></label><div class="row"><label>ID Dossier<input id="dossier"></label><label>E-mail account<input id="email" type="email"></label></div><div class="row"><label>Piano<select id="plan"><option>FREE</option><option>MEDIUM</option><option>FULL</option></select></label><label>Origine<select id="source"><option value="manual">Manuale</option><option value="gift">Omaggio</option><option value="tester">Tester</option><option value="staff">Staff</option><option value="promo">Promozione</option><option value="paid">Pagamento</option></select></label></div><label>Validità fino a (opzionale)<input id="until" type="datetime-local"></label><label>Nota<textarea id="note" rows="3"></textarea></label><p><button id="grant">Assegna / aggiorna</button> <button id="revoke" class="danger">Revoca</button></p></div><div class="card"><div class="search-block"><label for="q">Cerca</label><div class="search-controls"><input id="q"><button id="search">Cerca licenze</button></div></div><div id="status" class="status hidden"><span class="lamp"></span><span id="statusText"></span></div><details id="technical"><summary>Dettagli tecnici</summary><div id="out" class="out"></div></details></div></div><script>
+  body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f4f7f6;color:#17342e;margin:0}.wrap{max-width:960px;margin:40px auto;padding:0 20px}.card{background:#fff;border:1px solid #d9e7e2;border-radius:18px;padding:22px;margin:16px 0}label{display:grid;gap:6px;font-weight:700;margin:12px 0}input,select,textarea,button{font:inherit;padding:11px 12px;border-radius:10px;border:1px solid #bfd3cc}button{cursor:pointer;font-weight:800;background:#2f796d;color:#fff;border:0}.danger{background:#b42318}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.search-block{display:grid;gap:6px}.search-block>label{margin:0}.search-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:stretch}.search-controls input,.search-controls button{height:44px;box-sizing:border-box;margin:0}.search-controls button{display:flex;align-items:center;justify-content:center;white-space:nowrap}.status{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;font-weight:800;margin:14px 0}.status.hidden{display:none}.status.ok{background:#e7f6ec;color:#166534;border:1px solid #a7dfb7}.status.err{background:#fdeaea;color:#991b1b;border:1px solid #efb0b0}.lamp{width:14px;height:14px;border-radius:50%;flex:0 0 14px;background:#9ca3af}.status.ok .lamp{background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.14)}.status.err .lamp{background:#ef4444;box-shadow:0 0 0 4px rgba(239,68,68,.14)}details{margin-top:12px}.out{white-space:pre-wrap;background:#10231f;color:#dff3ed;padding:16px;border-radius:12px;min-height:80px;max-height:360px;overflow:auto;font-size:13px}.usage-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.usage-kpi{background:#f4f7f6;border:1px solid #d9e7e2;border-radius:12px;padding:12px}.usage-kpi small{display:block;color:#5d746d}.usage-kpi strong{font-size:24px}.usage-table-wrap{overflow:auto}.usage-table{width:100%;border-collapse:collapse;font-size:14px}.usage-table th,.usage-table td{padding:10px;border-bottom:1px solid #e3ece9;text-align:left;white-space:nowrap}.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:800;font-size:12px}.badge.ok{background:#e7f6ec;color:#166534}.badge.warn{background:#fff3cd;color:#7a5600}.badge.off{background:#fdeaea;color:#991b1b}@media(max-width:700px){.row{grid-template-columns:1fr}.search-controls{grid-template-columns:1fr}.search-controls button{width:100%}.usage-summary{grid-template-columns:1fr 1fr}}
+  </style><div class="wrap"><h1>Gestore licenze Clinica Digitale</h1><p>Il token amministratore non viene salvato dal browser.</p><div class="card"><label>Token amministratore<input id="key" type="password" autocomplete="off"></label><div class="row"><label>ID Dossier<input id="dossier"></label><label>E-mail account<input id="email" type="email"></label></div><div class="row"><label>Piano<select id="plan"><option>FREE</option><option>MEDIUM</option><option>FULL</option></select></label><label>Origine<select id="source"><option value="manual">Manuale</option><option value="gift">Omaggio</option><option value="tester">Tester</option><option value="staff">Staff</option><option value="promo">Promozione</option><option value="paid">Pagamento</option></select></label></div><label>Validità fino a (opzionale)<input id="until" type="datetime-local"></label><label>Nota<textarea id="note" rows="3"></textarea></label><p><button id="grant">Assegna / aggiorna</button> <button id="revoke" class="danger">Revoca</button></p></div><div class="card"><div class="search-block"><label for="q">Cerca</label><div class="search-controls"><input id="q"><button id="search">Cerca licenze</button></div></div><div id="status" class="status hidden"><span class="lamp"></span><span id="statusText"></span></div><details id="technical"><summary>Dettagli tecnici</summary><div id="out" class="out"></div></details></div><div class="card"><div class="card-title-row"><div><h2>Utilizzo dei Dossier</h2><p>Solo dati tecnici anonimi: nessun documento o dato sanitario.</p></div><button id="usageRefresh">Aggiorna utilizzo</button></div><div class="usage-summary"><div class="usage-kpi"><small>Dossier rilevati</small><strong id="usageTotal">0</strong></div><div class="usage-kpi"><small>Attivi ≤ 7 giorni</small><strong id="usageActive">0</strong></div><div class="usage-kpi"><small>Solo 1 avvio</small><strong id="usageSingle">0</strong></div><div class="usage-kpi"><small>Inattivi &gt; 7 giorni</small><strong id="usageInactive">0</strong></div></div><div class="usage-table-wrap"><table class="usage-table"><thead><tr><th>Dossier</th><th>Piano</th><th>Primo utilizzo</th><th>Ultimo utilizzo</th><th>Avvii</th><th>Installazioni</th><th>Versione</th><th>Stato</th></tr></thead><tbody id="usageBody"><tr><td colspan="8">Premi “Aggiorna utilizzo”.</td></tr></tbody></table></div></div></div><script>
   const $=id=>document.getElementById(id);
   const headers=()=>({'content-type':'application/json','authorization':'Bearer '+$('key').value});
   function render(result, action){
@@ -285,6 +403,29 @@ function adminHtml() {
   };
   $('revoke').onclick=async()=>await call('/v1/admin/revoke',{method:'POST',headers:headers(),body:JSON.stringify({dossierId:$('dossier').value,note:$('note').value})},'revoke');
   $('search').onclick=async()=>await call('/v1/admin/entitlements?q='+encodeURIComponent($('q').value),{headers:headers()},'search');
+  const fmtDate=value=>{if(!value)return'';try{return new Date(value).toLocaleString('it-IT')}catch{return value}};
+  function escHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function activityHtml(row){
+    if(row.activity==='single_launch')return '<span class="badge warn">Solo 1 avvio</span>';
+    if(row.activity==='active')return '<span class="badge ok">'+(row.daysInactive===0?'Usato oggi':'Attivo · '+row.daysInactive+' gg')+'</span>';
+    return '<span class="badge off">Inattivo da '+(row.daysInactive??'?')+' gg</span>';
+  }
+  async function refreshUsage(){
+    try{
+      const res=await fetch('/v1/admin/usage',{headers:headers()});
+      const data=await res.json();
+      if(!res.ok||!data.ok)throw new Error(data.error||'lettura_non_disponibile');
+      $('usageTotal').textContent=data.summary?.dossiers??0;
+      $('usageActive').textContent=data.summary?.active7d??0;
+      $('usageSingle').textContent=data.summary?.singleLaunch??0;
+      $('usageInactive').textContent=data.summary?.inactiveOver7d??0;
+      const rows=Array.isArray(data.usage)?data.usage:[];
+      $('usageBody').innerHTML=rows.length?rows.map(row=>'<tr><td><strong>'+escHtml(row.dossier_id)+'</strong></td><td>'+escHtml(row.plan)+'</td><td>'+escHtml(fmtDate(row.first_seen))+'</td><td>'+escHtml(fmtDate(row.last_seen))+'</td><td>'+escHtml(row.launch_count)+'</td><td>'+escHtml(row.installations)+'</td><td>'+escHtml(row.app_version||'')+'</td><td>'+activityHtml(row)+'</td></tr>').join(''):'<tr><td colspan="8">Nessun utilizzo ancora registrato.</td></tr>';
+    }catch(e){
+      $('usageBody').innerHTML='<tr><td colspan="8">Impossibile leggere le statistiche: '+escHtml(e.message)+'</td></tr>';
+    }
+  }
+  $('usageRefresh').onclick=refreshUsage;
   </script></html>`;
 }
 
@@ -298,6 +439,8 @@ export default {
       else if (request.method === "GET" && url.pathname === "/v1/public/plans") response = json(planPricing(env));
       else if (request.method === "GET" && url.pathname === "/admin") response = new Response(adminHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
       else if (request.method === "POST" && url.pathname === "/v1/license/resolve") response = await resolveLicense(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/usage/ping") response = await usagePing(request, env);
+      else if (request.method === "GET" && url.pathname === "/v1/admin/usage") response = await listUsage(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/admin/entitlements") response = await grantEntitlement(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/admin/revoke") response = await revokeEntitlement(request, env);
       else if (request.method === "GET" && url.pathname === "/v1/admin/entitlements") response = await listEntitlements(request, env);
