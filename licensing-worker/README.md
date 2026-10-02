@@ -10,6 +10,8 @@ Backend minimale per i piani FREE, MEDIUM e FULL di Clinica Digitale - Dossier S
 - MEDIUM e FULL vengono restituiti come entitlement firmati RSA;
 - la chiave privata non deve mai essere inserita nell'EXE, nel sito o nel repository;
 - il pannello `/admin` permette l'assegnazione manuale di un piano, compresi omaggi/tester/staff;
+- il pannello mostra statistiche tecniche anonime di utilizzo per Dossier: primo/ultimo utilizzo, avvii, installazioni, versione e stato di attività;
+- la telemetria non invia documenti, diagnosi, terapie, nomi, e-mail o altri dati sanitari;
 - prezzo di lancio: MEDIUM 1,99 EUR e FULL 2,99 EUR fino al 14/02/2027 compreso; dal 15/02/2027 prezzi standard 4,99 EUR e 9,99 EUR.
 
 ## Variabili/secret richiesti in Cloudflare
@@ -27,7 +29,9 @@ Creare un database D1 denominato `clinica-digitale-licenze`, applicare `schema.s
 - `GET /health`
 - `GET /v1/public/plans`
 - `POST /v1/license/resolve`
+- `POST /v1/usage/ping`
 - `GET /admin`
+- `GET /v1/admin/usage`
 - `GET /v1/admin/entitlements`
 - `POST /v1/admin/entitlements`
 - `POST /v1/admin/revoke`
