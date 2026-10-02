@@ -2,19 +2,17 @@
   "channel": "stable",
   "version": "1.0.0",
   "displayVersion": "1.0.0",
-  "releaseDate": "2026-09-28",
+  "releaseDate": "2026-10-02",
   "required": false,
   "releaseNotes": [
     "Clinica Digitale - Dossier Sanitario 1.0.0 per Windows.",
-    "Grafici clinici: la selezione resta stabile durante i controlli e gli aggiornamenti in background.",
-    "Terapie: Aggiungi e Modifica usano la stessa impaginazione e gli stessi allineamenti.",
-    "Elenco Terapie: ogni farmaco indica se il riordino automatico è attivo, se richiede ricetta e quanti giorni di preavviso sono configurati.",
-    "Riordino farmaci: preavviso configurabile per singolo farmaco da 1 a 60 giorni, con valore iniziale di 7 giorni.",
-    "Farmaci con ricetta: raggruppamento familiare secondo la finestra Agenda configurata. Farmaci senza ricetta: promemoria di acquisto/riordino separato con preavviso proprio.",
-    "Agenda e Google Calendar mantengono il modello di evento aggregato per le richieste con ricetta, evitando la moltiplicazione degli avvisi.",
-    "Valutazione clinica degli intervalli descrittivi preservata, incluso il caso Vitamina D con soglie di insufficienza."
+    "Timeout inattività esteso fino a 60 minuti.",
+    "Gestione piani FREE, MEDIUM e FULL integrata con preservazione dei dati in caso di cambio piano.",
+    "Dossier PDF: migliorata la leggibilità delle celle dei grafici selezionati.",
+    "Prenotazioni, Agenda, terapie, documenti, backup, cloud e funzioni cliniche consolidate restano preservati.",
+    "Installer Windows mantenuto nel flusso approvato; permane un lieve sfarfallio della sola barra di avanzamento accettato per la distribuzione corrente."
   ],
   "downloadUrl": "https://github.com/clinicadigitale/dossier-sanitario-updates/releases/download/v1.0.0/ClinicaDigitale_DossierSanitario_1.0.0_WIN64.exe",
-  "sha256": "dcccdd6e2de7bebc12e15e3060fb0235f8df5865f373065d191669e2fb03a8be",
-  "size": 139262808
+  "sha256": "be964d578c9d21ad5d2befb6305576e34a79b88bb532ea545945ef89b8903694",
+  "size": 139442462
 }
