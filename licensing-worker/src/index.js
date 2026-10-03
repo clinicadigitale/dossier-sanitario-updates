@@ -974,7 +974,7 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     let response;
     try {
-      if (request.method === "GET" && url.pathname === "/health") response = json({ ok: true, service: "clinica-digitale-licenze" });
+      if (request.method === "GET" && url.pathname === "/health") response = json({ ok: true, service: "clinica-digitale-licenze", build: String(env.BUILD_ID || "unknown"), payments: paymentModel(env) === "one_time" ? String(env.PAYPAL_ENVIRONMENT || "sandbox") : "disabled" });
       else if (request.method === "GET" && url.pathname === "/v1/public/plans") response = json(planPricing(env));
       else if (request.method === "GET" && url.pathname === "/admin") response = new Response(adminHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...securityHeaders(), "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" } });
       else if (request.method === "POST" && url.pathname === "/v1/license/resolve") response = await resolveLicense(request, env);
