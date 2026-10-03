@@ -694,6 +694,7 @@ async function paypalWebhook(request, env) {
   const eventId = String(event?.id || "");
   const eventType = String(event?.event_type || "");
   if (!eventId || !eventType) return json({ ok: false, error: "invalid_webhook" }, 400);
+  if (!PAYPAL_SECURITY_EVENTS.has(eventType)) return json({ ok: true, ignored: true });
   if (!String(env.PAYPAL_CLIENT_ID || "") || !String(env.PAYPAL_CLIENT_SECRET || "") || !String(env.PAYPAL_WEBHOOK_ID || "")) {
     return json({ ok: false, error: "paypal_not_configured" }, 503);
   }
@@ -987,7 +988,8 @@ export default {
       else if (request.method === "GET" && url.pathname === "/v1/admin/entitlements") response = await listEntitlements(request, env);
       else response = json({ ok: false, error: "not_found" }, 404);
     } catch (error) {
-      response = json({ ok: false, error: "internal_error", detail: String(error?.message || error) }, 500);
+      console.error("worker_error", String(error?.message || error));
+      response = json({ ok: false, error: "internal_error" }, 500);
     }
     const headers = corsHeaders(request, env);
     for (const [k, v] of Object.entries(headers)) response.headers.set(k, v);
