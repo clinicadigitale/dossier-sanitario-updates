@@ -13,6 +13,7 @@
     "PUBLIC_SITE_ORIGIN": "https://dossiersanitario.it",
     "PROMO_END": "2027-02-15T00:00:00+01:00",
     "PAYPAL_ENVIRONMENT": "sandbox",
-    "PAYMENT_MODEL": "disabled"
+    "PAYMENT_MODEL": "disabled",
+    "BUILD_ID": "2026-10-03-payments-security-1"
   }
 }
