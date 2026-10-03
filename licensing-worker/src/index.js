@@ -722,6 +722,267 @@ async function paypalWebhook(request, env) {
   }
 }
 
+
+function payhipReady(env) {
+  return paymentModel(env) === "payhip"
+    && String(env.PAYHIP_API_KEY || "")
+    && String(env.PAYHIP_MEDIUM_PRODUCT_KEY || "")
+    && String(env.PAYHIP_FULL_PRODUCT_KEY || "");
+}
+
+function payhipProductKey(env, plan) {
+  if (plan === "MEDIUM") return String(env.PAYHIP_MEDIUM_PRODUCT_KEY || "").trim();
+  if (plan === "FULL") return String(env.PAYHIP_FULL_PRODUCT_KEY || "").trim();
+  return "";
+}
+
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(String(value || "")));
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function safeEqualText(a, b) {
+  const x = String(a || "");
+  const y = String(b || "");
+  if (!x || x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return diff === 0;
+}
+
+async function verifyPayhipWebhookSignature(env, event) {
+  const apiKey = String(env.PAYHIP_API_KEY || "");
+  if (!apiKey) return false;
+  const expected = await sha256Hex(apiKey);
+  return safeEqualText(String(event?.signature || "").toLowerCase(), expected.toLowerCase());
+}
+
+async function createPayhipCheckout(request, env) {
+  await ensurePaymentSchema(env);
+  if (!payhipReady(env)) return json({ ok: false, error: "payments_not_enabled" }, 503);
+
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const dossierId = cleanDossierId(body.dossierId);
+  const installationId = cleanInstallationId(body.installationId);
+  const targetPlan = String(body.plan || "").toUpperCase();
+  if (!dossierId || !installationId || !["MEDIUM", "FULL"].includes(targetPlan)) {
+    return json({ ok: false, error: "invalid_input" }, 400);
+  }
+  if (!await paymentIdentityAllowed(env, dossierId, installationId)) {
+    return json({ ok: false, error: "installation_not_recognized" }, 403);
+  }
+  if (!await paymentThrottleAllowed(env, dossierId)) {
+    return json({ ok: false, error: "too_many_payment_attempts" }, 429);
+  }
+
+  const current = await env.DB.prepare(
+    "SELECT dossier_id, license_id, plan, status, source, source_ref, valid_until, created_at FROM entitlements WHERE dossier_id=?1"
+  ).bind(dossierId).first();
+  const currentPlan = !current || current.status !== "active" || expired(current.valid_until)
+    ? "FREE"
+    : (PLANS.has(String(current.plan || "").toUpperCase()) ? String(current.plan).toUpperCase() : "FREE");
+
+  if (PLAN_RANK[currentPlan] >= PLAN_RANK[targetPlan]) {
+    return json({ ok: false, error: "plan_already_active" }, 409);
+  }
+  if (currentPlan === "MEDIUM" && targetPlan === "FULL") {
+    return json({ ok: false, error: "medium_to_full_price_not_defined" }, 409);
+  }
+
+  const pricing = planPricing(env);
+  const cents = amountCents(pricing.plans[targetPlan]?.current);
+  const productKey = payhipProductKey(env, targetPlan);
+  if (cents <= 0 || !productKey) return json({ ok: false, error: "price_not_available" }, 503);
+
+  const paymentId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(`
+    INSERT INTO payments(
+      id, provider, dossier_id, installation_id, target_plan,
+      previous_plan, previous_status, previous_source, previous_source_ref, previous_valid_until,
+      amount_cents, currency, status, created_at, updated_at
+    ) VALUES(?1,'payhip',?2,?3,?4,?5,?6,?7,?8,?9,?10,'EUR','created',?11,?11)
+  `).bind(
+    paymentId, dossierId, installationId, targetPlan,
+    currentPlan, String(current?.status || ""), String(current?.source || ""),
+    String(current?.source_ref || ""), current?.valid_until || null,
+    cents, now
+  ).run();
+
+  const checkout = new URL("https://payhip.com/buy");
+  checkout.searchParams.set("link", productKey);
+  checkout.searchParams.set("metadata[cd_payment]", paymentId);
+
+  return json({
+    ok: true,
+    paymentId,
+    checkoutUrl: checkout.toString(),
+    plan: targetPlan,
+    amount: (cents / 100).toFixed(2),
+    currency: "EUR",
+  });
+}
+
+async function payhipPaymentStatus(request, env) {
+  await ensurePaymentSchema(env);
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const paymentId = cleanPaymentId(body.paymentId);
+  const installationId = cleanInstallationId(body.installationId);
+  if (!paymentId || !installationId) return json({ ok: false, error: "invalid_input" }, 400);
+  const payment = await env.DB.prepare(
+    "SELECT id,installation_id,target_plan,status,updated_at FROM payments WHERE id=?1 AND provider='payhip'"
+  ).bind(paymentId).first();
+  if (!payment || String(payment.installation_id) !== installationId) {
+    return json({ ok: false, error: "payment_not_found" }, 404);
+  }
+  return json({
+    ok: true,
+    paymentId,
+    plan: payment.target_plan,
+    status: payment.status,
+    updatedAt: payment.updated_at,
+  });
+}
+
+async function activatePayhipEntitlement(env, payment, event) {
+  const transactionId = String(event?.id || "").trim();
+  if (!transactionId) throw new Error("payhip_transaction_missing");
+  const currency = String(event?.currency || "").toUpperCase();
+  const paidCents = Number(event?.price);
+  if (currency !== String(payment.currency || "EUR")) throw new Error("payhip_currency_mismatch");
+  if (!Number.isFinite(paidCents) || paidCents < Number(payment.amount_cents)) {
+    throw new Error("payhip_amount_mismatch");
+  }
+
+  const items = Array.isArray(event?.items) ? event.items : [];
+  if (items.length !== 1) throw new Error("payhip_item_count_mismatch");
+  const item = items[0] || {};
+  const expectedProductKey = payhipProductKey(env, String(payment.target_plan || "").toUpperCase());
+  if (!expectedProductKey || String(item.product_key || "") !== expectedProductKey) {
+    throw new Error("payhip_product_mismatch");
+  }
+  if (Number(item.quantity || 1) !== 1) throw new Error("payhip_quantity_mismatch");
+
+  const existingTx = await env.DB.prepare(
+    "SELECT id FROM payments WHERE provider='payhip' AND provider_order_id=?1 LIMIT 1"
+  ).bind(transactionId).first();
+  if (existingTx && String(existingTx.id) !== String(payment.id)) throw new Error("payhip_transaction_reused");
+
+  const now = new Date().toISOString();
+  const current = await env.DB.prepare("SELECT * FROM entitlements WHERE dossier_id=?1")
+    .bind(payment.dossier_id).first();
+  const currentPlan = (!current || current.status !== "active" || expired(current.valid_until))
+    ? "FREE"
+    : String(current.plan || "FREE").toUpperCase();
+
+  await env.DB.prepare(
+    "UPDATE payments SET provider_order_id=?2,status='completed',updated_at=?3 WHERE id=?1"
+  ).bind(payment.id, transactionId, now).run();
+
+  if (PLAN_RANK[currentPlan] > PLAN_RANK[payment.target_plan] && String(current?.source_ref || "") !== payment.id) {
+    await env.DB.prepare(
+      "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,'payment_completed_no_downgrade',?2,'paid',?3,?4)"
+    ).bind(payment.dossier_id, payment.target_plan, "Pagamento Payhip acquisito senza abbassare un piano superiore già attivo.", now).run();
+    return;
+  }
+
+  const licenseId = current?.license_id || crypto.randomUUID();
+  const createdAt = current?.created_at || now;
+  await env.DB.prepare(`
+    INSERT INTO entitlements(dossier_id,license_id,account_email,plan,status,source,note,valid_until,created_at,updated_at,source_ref)
+    VALUES(?1,?2,NULL,?3,'active','paid',?4,NULL,?5,?6,?7)
+    ON CONFLICT(dossier_id) DO UPDATE SET
+      plan=excluded.plan,status='active',source='paid',source_ref=excluded.source_ref,
+      note=excluded.note,valid_until=NULL,updated_at=excluded.updated_at
+  `).bind(payment.dossier_id, licenseId, payment.target_plan, "Pagamento Payhip confermato", createdAt, now, payment.id).run();
+
+  await env.DB.prepare(
+    "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,'payment_grant',?2,'paid',?3,?4)"
+  ).bind(payment.dossier_id, payment.target_plan, "Payhip transaction " + transactionId, now).run();
+}
+
+function payhipPaymentIdFromEvent(event) {
+  const metadata = event?.metadata && typeof event.metadata === "object" ? event.metadata : {};
+  return cleanPaymentId(metadata.cd_payment || metadata.payment_intent || "");
+}
+
+async function processPayhipWebhookEvent(env, event) {
+  const type = String(event?.type || "");
+  const transactionId = String(event?.id || "").trim();
+  if (!["paid", "refunded"].includes(type)) return "ignored_event";
+  if (!transactionId) throw new Error("payhip_transaction_missing");
+
+  if (type === "paid") {
+    const paymentId = payhipPaymentIdFromEvent(event);
+    if (!paymentId) return "paid_unmatched";
+    const payment = await env.DB.prepare(
+      "SELECT * FROM payments WHERE id=?1 AND provider='payhip'"
+    ).bind(paymentId).first();
+    if (!payment) return "paid_unmatched";
+    if (["refunded","reversed","disputed"].includes(String(payment.status))) return "paid_after_block_ignored";
+    await activatePayhipEntitlement(env, payment, event);
+    return "paid_activated";
+  }
+
+  const payment = await env.DB.prepare(
+    "SELECT * FROM payments WHERE provider='payhip' AND provider_order_id=?1 LIMIT 1"
+  ).bind(transactionId).first();
+  if (!payment) return "refund_unmatched";
+  const refunded = Number(event?.amount_refunded || 0);
+  if (!Number.isFinite(refunded) || refunded <= 0) return "refund_zero_ignored";
+  await restorePreviousEntitlement(
+    env,
+    payment,
+    "refunded",
+    "Rimborso Payhip rilevato: piano a pagamento ritirato automaticamente."
+  );
+  return refunded >= Number(event?.price || payment.amount_cents)
+    ? "full_refund_reverted"
+    : "partial_refund_reverted";
+}
+
+async function payhipWebhook(request, env) {
+  await ensurePaymentSchema(env);
+  const length = Number(request.headers.get("content-length") || 0);
+  if (length > 256 * 1024) return json({ ok: false, error: "payload_too_large" }, 413);
+
+  let event = {};
+  try { event = await request.json(); } catch { return json({ ok: false, error: "invalid_json" }, 400); }
+  const type = String(event?.type || "");
+  if (!["paid", "refunded"].includes(type)) return json({ ok: true, ignored: true });
+  if (!payhipReady(env)) return json({ ok: false, error: "payhip_not_configured" }, 503);
+  if (!await verifyPayhipWebhookSignature(env, event)) {
+    return json({ ok: false, error: "invalid_webhook_signature" }, 401);
+  }
+
+  const transactionId = String(event?.id || "").trim();
+  if (!transactionId) return json({ ok: false, error: "invalid_webhook" }, 400);
+  const eventMoment = type === "refunded"
+    ? String(event?.date_refunded || "") + ":" + String(event?.amount_refunded || "")
+    : String(event?.date || "");
+  const eventId = "payhip:" + type + ":" + transactionId + ":" + eventMoment;
+  const now = new Date().toISOString();
+
+  const inserted = await env.DB.prepare(`
+    INSERT OR IGNORE INTO payment_events(event_id,event_type,transmission_id,resource_id,result,received_at)
+    VALUES(?1,?2,'',?3,'processing',?4)
+  `).bind(eventId, "PAYHIP." + type.toUpperCase(), transactionId, now).run();
+  if (Number(inserted?.meta?.changes || 0) === 0) return json({ ok: true, duplicate: true });
+
+  try {
+    const result = await processPayhipWebhookEvent(env, event);
+    await env.DB.prepare(
+      "UPDATE payment_events SET result=?2,processed_at=?3 WHERE event_id=?1"
+    ).bind(eventId, result, new Date().toISOString()).run();
+    return json({ ok: true });
+  } catch (error) {
+    await env.DB.prepare("DELETE FROM payment_events WHERE event_id=?1").bind(eventId).run().catch(() => {});
+    throw error;
+  }
+}
+
 function adminAuthorized(request, env) {
   const expected = String(env.ADMIN_API_KEY || "");
   if (!expected) return false;
@@ -974,11 +1235,14 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     let response;
     try {
-      if (request.method === "GET" && url.pathname === "/health") response = json({ ok: true, service: "clinica-digitale-licenze", build: String(env.BUILD_ID || "unknown"), payments: paymentModel(env) === "one_time" ? String(env.PAYPAL_ENVIRONMENT || "sandbox") : "disabled" });
+      if (request.method === "GET" && url.pathname === "/health") response = json({ ok: true, service: "clinica-digitale-licenze", build: String(env.BUILD_ID || "unknown"), payments: paymentModel(env) === "payhip" ? "payhip" : (paymentModel(env) === "one_time" ? String(env.PAYPAL_ENVIRONMENT || "sandbox") : "disabled") });
       else if (request.method === "GET" && url.pathname === "/v1/public/plans") response = json(planPricing(env));
       else if (request.method === "GET" && url.pathname === "/admin") response = new Response(adminHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...securityHeaders(), "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" } });
       else if (request.method === "POST" && url.pathname === "/v1/license/resolve") response = await resolveLicense(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/usage/ping") response = await usagePing(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/payhip/create-checkout") response = await createPayhipCheckout(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/payhip/status") response = await payhipPaymentStatus(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/payhip/webhook") response = await payhipWebhook(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/create-order") response = await createPayPalOrder(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/capture-order") response = await capturePayPalOrder(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/webhook") response = await paypalWebhook(request, env);
