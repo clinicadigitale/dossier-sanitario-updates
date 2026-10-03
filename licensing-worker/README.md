@@ -15,20 +15,24 @@ Backend minimale per i piani FREE, MEDIUM e FULL di Clinica Digitale - Dossier S
 - prezzo di lancio: MEDIUM 1,99 EUR e FULL 2,99 EUR fino al 14/02/2027 compreso; dal 15/02/2027 prezzi standard 4,99 EUR e 9,99 EUR;
 - per entitlement con origine `paid`, il token firmato richiede refresh dopo 6 ore e non resta valido offline oltre 24 ore;
 - il backup del Dossier non è autorità di licenza: la licenza viene sempre risolta dal backend e il downgrade non cancella i dati;
-- i pagamenti PayPal sono predisposti ma restano DISABILITATI finché `PAYMENT_MODEL` non viene deliberatamente impostato a `one_time` e i secret PayPal non sono configurati;
-- webhook PayPal: verifica crittografica lato PayPal, idempotenza per event ID, ricontrollo server-to-server della capture, confronto importo/valuta, rollback automatico su refund/reversal e sospensione su dispute;
+- il percorso iniziale scelto è Payhip collegato a PayPal Personale; i pagamenti restano DISABILITATI finché Payhip non è configurato e collaudato;
+- webhook Payhip: verifica della firma prevista da Payhip, identificatore pagamento casuale, controllo prodotto/importo/valuta, blocco dei duplicati e ritiro automatico del piano in caso di rimborso;
 - nessun Client Secret o access token PayPal deve mai arrivare al browser, al Dossier, al repository o ai backup.
 
 ## Variabili/secret richiesti in Cloudflare
 
 - `LICENSE_PRIVATE_KEY_PEM` secret: chiave RSA privata PKCS#8.
 - `ADMIN_API_KEY` secret: token amministratore lungo e casuale.
+- `PAYHIP_API_KEY` secret: chiave API Payhip; usata solo dal server per verificare gli avvisi di pagamento/rimborso.
 - `PAYPAL_CLIENT_ID` secret: Client ID dell'app REST PayPal.
 - `PAYPAL_CLIENT_SECRET` secret: Client Secret dell'app REST PayPal; solo server-side.
 - `PAYPAL_WEBHOOK_ID` secret: ID del webhook registrato nell'app PayPal e usato per la verifica firma.
 - binding D1 `DB` collegato al database `clinica-digitale-licenze`.
 
 Variabili non segrete:
+- `PAYHIP_MEDIUM_PRODUCT_KEY`: codice prodotto Payhip del piano MEDIUM.
+- `PAYHIP_FULL_PRODUCT_KEY`: codice prodotto Payhip del piano FULL.
+- `PAYMENT_MODEL=payhip` soltanto dopo configurazione e collaudo; fino ad allora resta `disabled`.
 - `PAYPAL_ENVIRONMENT=sandbox` durante i test, `live` soltanto dopo collaudo;
 - `PAYMENT_MODEL=disabled` per default. Non portare a `one_time` finché modello commerciale, checkout e test sandbox non sono approvati.
 
@@ -42,6 +46,9 @@ Creare un database D1 denominato `clinica-digitale-licenze`, applicare `schema.s
 - `GET /v1/public/plans`
 - `POST /v1/license/resolve`
 - `POST /v1/usage/ping`
+- `POST /v1/payments/payhip/create-checkout`
+- `POST /v1/payments/payhip/status`
+- `POST /v1/payments/payhip/webhook`
 - `POST /v1/payments/paypal/create-order`
 - `POST /v1/payments/paypal/capture-order`
 - `POST /v1/payments/paypal/webhook`
@@ -53,6 +60,19 @@ Creare un database D1 denominato `clinica-digitale-licenze`, applicare `schema.s
 
 Gli endpoint `/v1/admin/*` richiedono `Authorization: Bearer <ADMIN_API_KEY>`.
 
+
+## Payhip / PayPal Personale
+
+Il checkout Payhip non riceve mai l'ID reale del Dossier. Il Worker crea prima un identificatore casuale di pagamento, lo associa nel database al Dossier/installazione e lo passa a Payhip come metadato. Quando Payhip comunica una vendita, il Worker accetta l'upgrade solo se:
+- l'avviso contiene la firma prevista da Payhip;
+- l'identificatore casuale esiste ed è ancora associato al pagamento;
+- il prodotto acquistato corrisponde esattamente a MEDIUM o FULL;
+- la valuta è EUR e l'importo non è inferiore al prezzo atteso;
+- la transazione Payhip non è già stata usata per un altro Dossier.
+
+Gli avvisi duplicati vengono ignorati. Un rimborso, anche parziale, ritira automaticamente il piano acquistato e ripristina il piano precedente quando applicabile. Una licenza successiva o assegnata manualmente non viene abbassata da un vecchio rimborso.
+
+Payhip documenta quattro tipi di avviso: pagamento, rimborso, nuova sottoscrizione e cancellazione sottoscrizione. Non documenta un avviso specifico per l'apertura di una contestazione/chargeback; questo punto richiede una protezione separata prima dell'attivazione commerciale definitiva.
 
 ## Hardening PayPal / OAuth
 
