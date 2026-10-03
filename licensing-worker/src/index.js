@@ -1,6 +1,28 @@
 const PLANS = new Set(["FREE", "MEDIUM", "FULL"]);
+const PLAN_RANK = { FREE: 0, MEDIUM: 1, FULL: 2 };
 const SOURCES = new Set(["manual", "gift", "tester", "staff", "promo", "paid"]);
+const PAYPAL_SECURITY_EVENTS = new Set([
+  "PAYMENT.CAPTURE.COMPLETED",
+  "PAYMENT.CAPTURE.DENIED",
+  "PAYMENT.CAPTURE.PENDING",
+  "PAYMENT.CAPTURE.REFUNDED",
+  "PAYMENT.CAPTURE.REVERSED",
+  "CHECKOUT.PAYMENT-APPROVAL.REVERSED",
+  "CUSTOMER.DISPUTE.CREATED",
+  "CUSTOMER.DISPUTE.UPDATED",
+  "CUSTOMER.DISPUTE.RESOLVED",
+]);
 const encoder = new TextEncoder();
+
+function securityHeaders() {
+  return {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    "cross-origin-resource-policy": "same-origin",
+  };
+}
 
 function json(data, status = 200, extra = {}) {
   return new Response(JSON.stringify(data), {
@@ -8,6 +30,7 @@ function json(data, status = 200, extra = {}) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      ...securityHeaders(),
       ...extra,
     },
   });
@@ -49,6 +72,9 @@ async function privateKey(env) {
 
 async function signEntitlement(env, row) {
   const now = new Date().toISOString();
+  const paid = String(row.source || "") === "paid";
+  const refreshMs = paid ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const offlineMs = paid ? 24 * 60 * 60 * 1000 : 14 * 24 * 60 * 60 * 1000;
   const payload = {
     schema: 1,
     dossierId: String(row.dossier_id),
@@ -57,10 +83,10 @@ async function signEntitlement(env, row) {
     source: String(row.source || "manual"),
     issuedAt: now,
     validUntil: row.valid_until ? String(row.valid_until) : "",
-    refreshAfter: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    refreshAfter: new Date(Date.now() + refreshMs).toISOString(),
     notAfter: new Date(Math.min(
       row.valid_until && Number.isFinite(Date.parse(row.valid_until)) ? Date.parse(row.valid_until) : Number.POSITIVE_INFINITY,
-      Date.now() + 14 * 24 * 60 * 60 * 1000
+      Date.now() + offlineMs
     )).toISOString(),
   };
   const raw = encoder.encode(JSON.stringify(payload));
@@ -207,6 +233,494 @@ async function listUsage(request, env) {
   });
 }
 
+
+function paymentModel(env) {
+  return String(env.PAYMENT_MODEL || "disabled").trim().toLowerCase();
+}
+
+function paypalBaseUrl(env) {
+  return String(env.PAYPAL_ENVIRONMENT || "sandbox").toLowerCase() === "live"
+    ? "https://api-m.paypal.com"
+    : "https://api-m.sandbox.paypal.com";
+}
+
+function paypalReady(env) {
+  return paymentModel(env) === "one_time"
+    && String(env.PAYPAL_CLIENT_ID || "")
+    && String(env.PAYPAL_CLIENT_SECRET || "");
+}
+
+function cleanPaymentId(value) {
+  const s = String(value || "").trim();
+  return /^[A-Za-z0-9._:-]{16,160}$/.test(s) ? s : "";
+}
+
+async function ensurePaymentSchema(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL DEFAULT 'paypal',
+      provider_order_id TEXT UNIQUE,
+      provider_capture_id TEXT UNIQUE,
+      dossier_id TEXT NOT NULL,
+      installation_id TEXT NOT NULL DEFAULT '',
+      target_plan TEXT NOT NULL,
+      previous_plan TEXT NOT NULL DEFAULT 'FREE',
+      previous_status TEXT NOT NULL DEFAULT '',
+      previous_source TEXT NOT NULL DEFAULT '',
+      previous_source_ref TEXT NOT NULL DEFAULT '',
+      previous_valid_until TEXT,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'EUR',
+      status TEXT NOT NULL DEFAULT 'created',
+      seller_protection TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_payments_dossier ON payments(dossier_id, created_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_payments_capture ON payments(provider_capture_id)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS payment_events (
+      event_id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      transmission_id TEXT NOT NULL DEFAULT '',
+      resource_id TEXT NOT NULL DEFAULT '',
+      result TEXT NOT NULL DEFAULT 'processing',
+      received_at TEXT NOT NULL,
+      processed_at TEXT
+    )
+  `).run();
+  const info = await env.DB.prepare("PRAGMA table_info(entitlements)").all();
+  if (!(info.results || []).some(row => String(row.name) === "source_ref")) {
+    try { await env.DB.prepare("ALTER TABLE entitlements ADD COLUMN source_ref TEXT").run(); }
+    catch (error) {
+      if (!/duplicate column/i.test(String(error?.message || error))) throw error;
+    }
+  }
+}
+
+let paypalTokenCache = { key: "", token: "", until: 0 };
+async function paypalAccessToken(env) {
+  const clientId = String(env.PAYPAL_CLIENT_ID || "");
+  const clientSecret = String(env.PAYPAL_CLIENT_SECRET || "");
+  if (!clientId || !clientSecret) throw new Error("paypal_not_configured");
+  const key = String(env.PAYPAL_ENVIRONMENT || "sandbox") + ":" + clientId;
+  if (paypalTokenCache.key === key && paypalTokenCache.token && paypalTokenCache.until > Date.now() + 60000) {
+    return paypalTokenCache.token;
+  }
+  const response = await fetch(paypalBaseUrl(env) + "/v1/oauth2/token", {
+    method: "POST",
+    headers: {
+      "authorization": "Basic " + btoa(clientId + ":" + clientSecret),
+      "content-type": "application/x-www-form-urlencoded",
+      "accept": "application/json",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) throw new Error("paypal_oauth_failed");
+  const expires = Math.max(60, Number(data.expires_in || 300) - 120);
+  paypalTokenCache = { key, token: String(data.access_token), until: Date.now() + expires * 1000 };
+  return paypalTokenCache.token;
+}
+
+async function paypalApi(env, path, { method = "GET", body = null, requestId = "" } = {}) {
+  const token = await paypalAccessToken(env);
+  const headers = {
+    "authorization": "Bearer " + token,
+    "accept": "application/json",
+  };
+  if (body !== null) headers["content-type"] = "application/json";
+  if (requestId) headers["paypal-request-id"] = requestId;
+  const response = await fetch(paypalBaseUrl(env) + path, {
+    method,
+    headers,
+    body: body === null ? undefined : JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error("paypal_api_failed");
+    error.paypalStatus = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function amountCents(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) : -1;
+}
+
+async function paymentIdentityAllowed(env, dossierId, installationId) {
+  await ensureUsageSchema(env);
+  const row = await env.DB.prepare(
+    "SELECT 1 AS ok FROM usage_installations WHERE dossier_id=?1 AND installation_id=?2 LIMIT 1"
+  ).bind(dossierId, installationId).first();
+  return !!row;
+}
+
+async function paymentThrottleAllowed(env, dossierId) {
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM payments WHERE dossier_id=?1 AND created_at>=?2"
+  ).bind(dossierId, cutoff).first();
+  return Number(row?.n || 0) < 5;
+}
+
+async function createPayPalOrder(request, env) {
+  await ensurePaymentSchema(env);
+  if (!paypalReady(env)) return json({ ok: false, error: "payments_not_enabled" }, 503);
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const dossierId = cleanDossierId(body.dossierId);
+  const installationId = cleanInstallationId(body.installationId);
+  const targetPlan = String(body.plan || "").toUpperCase();
+  if (!dossierId || !installationId || !["MEDIUM", "FULL"].includes(targetPlan)) {
+    return json({ ok: false, error: "invalid_input" }, 400);
+  }
+  if (!await paymentIdentityAllowed(env, dossierId, installationId)) {
+    return json({ ok: false, error: "installation_not_recognized" }, 403);
+  }
+  if (!await paymentThrottleAllowed(env, dossierId)) {
+    return json({ ok: false, error: "too_many_payment_attempts" }, 429);
+  }
+
+  const current = await env.DB.prepare(
+    "SELECT dossier_id, license_id, plan, status, source, source_ref, valid_until, created_at FROM entitlements WHERE dossier_id=?1"
+  ).bind(dossierId).first();
+  const currentPlan = !current || current.status !== "active" || expired(current.valid_until)
+    ? "FREE"
+    : (PLANS.has(String(current.plan || "").toUpperCase()) ? String(current.plan).toUpperCase() : "FREE");
+  if (PLAN_RANK[currentPlan] >= PLAN_RANK[targetPlan]) {
+    return json({ ok: false, error: "plan_already_active" }, 409);
+  }
+  if (currentPlan === "MEDIUM" && targetPlan === "FULL") {
+    return json({ ok: false, error: "medium_to_full_price_not_defined" }, 409);
+  }
+
+  const pricing = planPricing(env);
+  const cents = amountCents(pricing.plans[targetPlan]?.current);
+  if (cents <= 0) return json({ ok: false, error: "price_not_available" }, 503);
+
+  const paymentId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(`
+    INSERT INTO payments(
+      id, provider, dossier_id, installation_id, target_plan,
+      previous_plan, previous_status, previous_source, previous_source_ref, previous_valid_until,
+      amount_cents, currency, status, created_at, updated_at
+    ) VALUES(?1,'paypal',?2,?3,?4,?5,?6,?7,?8,?9,?10,'EUR','creating',?11,?11)
+  `).bind(
+    paymentId, dossierId, installationId, targetPlan,
+    currentPlan, String(current?.status || ""), String(current?.source || ""),
+    String(current?.source_ref || ""), current?.valid_until || null,
+    cents, now
+  ).run();
+
+  const order = await paypalApi(env, "/v2/checkout/orders", {
+    method: "POST",
+    requestId: paymentId,
+    body: {
+      intent: "CAPTURE",
+      purchase_units: [{
+        reference_id: paymentId,
+        custom_id: paymentId,
+        invoice_id: "CD-" + paymentId,
+        description: "Clinica Digitale - piano " + targetPlan,
+        amount: { currency_code: "EUR", value: (cents / 100).toFixed(2) },
+      }],
+      payment_source: { paypal: { experience_context: { shipping_preference: "NO_SHIPPING", user_action: "PAY_NOW" } } },
+    },
+  });
+
+  const orderId = String(order.id || "");
+  if (!orderId) throw new Error("paypal_order_missing");
+  await env.DB.prepare(
+    "UPDATE payments SET provider_order_id=?2,status='created',updated_at=?3 WHERE id=?1"
+  ).bind(paymentId, orderId, new Date().toISOString()).run();
+  const approveUrl = (order.links || []).find(link => link.rel === "payer-action" || link.rel === "approve")?.href || "";
+  return json({ ok: true, paymentId, orderId, approveUrl, plan: targetPlan, amount: (cents / 100).toFixed(2), currency: "EUR" });
+}
+
+async function confirmPayPalCapture(env, captureId) {
+  const id = String(captureId || "");
+  if (!id) throw new Error("capture_id_missing");
+  return paypalApi(env, "/v2/payments/captures/" + encodeURIComponent(id));
+}
+
+async function activatePaidEntitlement(env, payment, capture) {
+  const captureId = String(capture?.id || "");
+  const captureStatus = String(capture?.status || "");
+  const customId = String(capture?.custom_id || "");
+  const cents = amountCents(capture?.amount?.value);
+  const currency = String(capture?.amount?.currency_code || "");
+  if (captureStatus !== "COMPLETED") throw new Error("capture_not_completed");
+  if (customId && customId !== payment.id) throw new Error("capture_payment_mismatch");
+  if (cents !== Number(payment.amount_cents) || currency !== String(payment.currency)) throw new Error("capture_amount_mismatch");
+
+  const now = new Date().toISOString();
+  const current = await env.DB.prepare("SELECT * FROM entitlements WHERE dossier_id=?1").bind(payment.dossier_id).first();
+  const currentPlan = (!current || current.status !== "active" || expired(current.valid_until))
+    ? "FREE"
+    : String(current.plan || "FREE").toUpperCase();
+
+  await env.DB.prepare(
+    "UPDATE payments SET provider_capture_id=?2,status='completed',seller_protection=?3,updated_at=?4 WHERE id=?1"
+  ).bind(payment.id, captureId, String(capture?.seller_protection?.status || ""), now).run();
+
+  if (PLAN_RANK[currentPlan] > PLAN_RANK[payment.target_plan] && String(current?.source_ref || "") !== payment.id) {
+    await env.DB.prepare(
+      "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,'payment_completed_no_downgrade',?2,'paid',?3,?4)"
+    ).bind(payment.dossier_id, payment.target_plan, "Pagamento " + payment.id + " acquisito senza abbassare un piano superiore già attivo.", now).run();
+    return;
+  }
+
+  const licenseId = current?.license_id || crypto.randomUUID();
+  const createdAt = current?.created_at || now;
+  await env.DB.prepare(`
+    INSERT INTO entitlements(dossier_id,license_id,account_email,plan,status,source,note,valid_until,created_at,updated_at,source_ref)
+    VALUES(?1,?2,NULL,?3,'active','paid',?4,NULL,?5,?6,?7)
+    ON CONFLICT(dossier_id) DO UPDATE SET
+      plan=excluded.plan,status='active',source='paid',source_ref=excluded.source_ref,
+      note=excluded.note,valid_until=NULL,updated_at=excluded.updated_at
+  `).bind(payment.dossier_id, licenseId, payment.target_plan, "Pagamento PayPal confermato", createdAt, now, payment.id).run();
+  await env.DB.prepare(
+    "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,'payment_grant',?2,'paid',?3,?4)"
+  ).bind(payment.dossier_id, payment.target_plan, "Payment " + payment.id + " / capture " + captureId, now).run();
+}
+
+async function capturePayPalOrder(request, env) {
+  await ensurePaymentSchema(env);
+  if (!paypalReady(env)) return json({ ok: false, error: "payments_not_enabled" }, 503);
+  let body = {};
+  try { body = await request.json(); } catch {}
+  const paymentId = cleanPaymentId(body.paymentId);
+  const installationId = cleanInstallationId(body.installationId);
+  if (!paymentId || !installationId) return json({ ok: false, error: "invalid_input" }, 400);
+  const payment = await env.DB.prepare("SELECT * FROM payments WHERE id=?1").bind(paymentId).first();
+  if (!payment || payment.installation_id !== installationId) return json({ ok: false, error: "payment_not_found" }, 404);
+  if (["refunded","reversed","disputed"].includes(String(payment.status))) return json({ ok: false, error: "payment_not_capturable" }, 409);
+  if (payment.status === "completed" && payment.provider_capture_id) {
+    return json({ ok: true, status: "COMPLETED", paymentId, captureId: payment.provider_capture_id });
+  }
+  const orderId = String(payment.provider_order_id || "");
+  if (!orderId) return json({ ok: false, error: "paypal_order_missing" }, 409);
+
+  const captured = await paypalApi(env, "/v2/checkout/orders/" + encodeURIComponent(orderId) + "/capture", {
+    method: "POST",
+    requestId: paymentId + "-capture",
+    body: {},
+  });
+  const capture = captured?.purchase_units?.flatMap(unit => unit?.payments?.captures || [])[0];
+  if (!capture?.id) return json({ ok: false, error: "paypal_capture_missing" }, 502);
+  const verified = await confirmPayPalCapture(env, capture.id);
+  await activatePaidEntitlement(env, payment, verified);
+  return json({ ok: true, status: "COMPLETED", paymentId, captureId: String(verified.id || "") });
+}
+
+async function restorePreviousEntitlement(env, payment, status, reason) {
+  const now = new Date().toISOString();
+  await env.DB.prepare("UPDATE payments SET status=?2,updated_at=?3 WHERE id=?1")
+    .bind(payment.id, status, now).run();
+  const current = await env.DB.prepare("SELECT * FROM entitlements WHERE dossier_id=?1").bind(payment.dossier_id).first();
+  if (!current || String(current.source || "") !== "paid" || String(current.source_ref || "") !== payment.id) {
+    await env.DB.prepare(
+      "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,?2,?3,'paid',?4,?5)"
+    ).bind(payment.dossier_id, "payment_" + status + "_no_current_change", payment.target_plan, reason, now).run();
+    return;
+  }
+
+  const previousPlan = String(payment.previous_plan || "FREE").toUpperCase();
+  const previousStillValid = !payment.previous_valid_until || !expired(payment.previous_valid_until);
+  if (PLAN_RANK[previousPlan] > 0 && String(payment.previous_status || "") === "active" && previousStillValid) {
+    await env.DB.prepare(`
+      UPDATE entitlements
+      SET plan=?2,status='active',source=?3,source_ref=?4,valid_until=?5,note=?6,updated_at=?7
+      WHERE dossier_id=?1
+    `).bind(
+      payment.dossier_id, previousPlan, payment.previous_source || "manual",
+      payment.previous_source_ref || null, payment.previous_valid_until || null,
+      reason, now
+    ).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE entitlements SET status='revoked',source_ref=NULL,note=?2,updated_at=?3 WHERE dossier_id=?1"
+    ).bind(payment.dossier_id, reason, now).run();
+  }
+  await env.DB.prepare(
+    "INSERT INTO entitlement_audit(dossier_id,action,plan,source,note,created_at) VALUES(?1,?2,?3,'paid',?4,?5)"
+  ).bind(payment.dossier_id, "payment_" + status + "_revert", payment.target_plan, reason, now).run();
+}
+
+async function paymentFromResource(env, resource) {
+  const customId = cleanPaymentId(resource?.custom_id);
+  if (customId) {
+    const byCustom = await env.DB.prepare("SELECT * FROM payments WHERE id=?1").bind(customId).first();
+    if (byCustom) return byCustom;
+  }
+  const resourceId = String(resource?.id || "");
+  if (resourceId) {
+    const byCapture = await env.DB.prepare("SELECT * FROM payments WHERE provider_capture_id=?1").bind(resourceId).first();
+    if (byCapture) return byCapture;
+  }
+  const related = resource?.supplementary_data?.related_ids || {};
+  const captureId = String(related.capture_id || related.sale_id || "");
+  if (captureId) {
+    const byRelated = await env.DB.prepare("SELECT * FROM payments WHERE provider_capture_id=?1").bind(captureId).first();
+    if (byRelated) return byRelated;
+  }
+  const orderId = String(related.order_id || "");
+  if (orderId) {
+    const byOrder = await env.DB.prepare("SELECT * FROM payments WHERE provider_order_id=?1").bind(orderId).first();
+    if (byOrder) return byOrder;
+  }
+  const invoiceId = String(resource?.invoice_id || "");
+  if (invoiceId.startsWith("CD-")) {
+    const pid = cleanPaymentId(invoiceId.slice(3));
+    if (pid) {
+      const byInvoice = await env.DB.prepare("SELECT * FROM payments WHERE id=?1").bind(pid).first();
+      if (byInvoice) return byInvoice;
+    }
+  }
+  for (const link of resource?.links || []) {
+    const match = String(link?.href || "").match(/\/captures\/([^/?#]+)/);
+    if (match) {
+      const byLink = await env.DB.prepare("SELECT * FROM payments WHERE provider_capture_id=?1").bind(match[1]).first();
+      if (byLink) return byLink;
+    }
+  }
+  return null;
+}
+
+async function verifyPayPalWebhook(request, env, event) {
+  const webhookId = String(env.PAYPAL_WEBHOOK_ID || "");
+  if (!webhookId) return false;
+  const transmissionId = request.headers.get("paypal-transmission-id") || "";
+  const transmissionTime = request.headers.get("paypal-transmission-time") || "";
+  const transmissionSig = request.headers.get("paypal-transmission-sig") || "";
+  const certUrl = request.headers.get("paypal-cert-url") || "";
+  const authAlgo = request.headers.get("paypal-auth-algo") || "";
+  if (!transmissionId || !transmissionTime || !transmissionSig || !certUrl || !authAlgo) return false;
+  const result = await paypalApi(env, "/v1/notifications/verify-webhook-signature", {
+    method: "POST",
+    body: {
+      transmission_id: transmissionId,
+      transmission_time: transmissionTime,
+      cert_url: certUrl,
+      auth_algo: authAlgo,
+      transmission_sig: transmissionSig,
+      webhook_id: webhookId,
+      webhook_event: event,
+    },
+  });
+  return String(result.verification_status || "") === "SUCCESS";
+}
+
+async function disputePayment(env, resource) {
+  const disputeId = String(resource?.dispute_id || resource?.id || "");
+  if (!disputeId) return null;
+  const details = await paypalApi(env, "/v1/customer/disputes/" + encodeURIComponent(disputeId));
+  const transactions = Array.isArray(details?.disputed_transactions) ? details.disputed_transactions : [];
+  for (const tx of transactions) {
+    const sellerId = String(tx?.seller_transaction_id || tx?.seller_transaction?.transaction_id || tx?.seller_transaction?.id || "");
+    if (!sellerId) continue;
+    const payment = await env.DB.prepare("SELECT * FROM payments WHERE provider_capture_id=?1").bind(sellerId).first();
+    if (payment) return { payment, details };
+  }
+  return { payment: null, details };
+}
+
+async function processPayPalWebhookEvent(env, event) {
+  const type = String(event?.event_type || "");
+  const resource = event?.resource || {};
+  if (!PAYPAL_SECURITY_EVENTS.has(type)) return "ignored_event";
+
+  if (type === "PAYMENT.CAPTURE.COMPLETED") {
+    const capture = await confirmPayPalCapture(env, resource.id);
+    const payment = await paymentFromResource(env, capture);
+    if (!payment) return "completed_unmatched";
+    if (["refunded","reversed","disputed"].includes(String(payment.status))) return "completed_after_block_ignored";
+    await activatePaidEntitlement(env, payment, capture);
+    return "completed_activated";
+  }
+
+  if (type === "PAYMENT.CAPTURE.REFUNDED" || type === "PAYMENT.CAPTURE.REVERSED") {
+    const payment = await paymentFromResource(env, resource);
+    if (!payment) return "refund_or_reversal_unmatched";
+    const state = type.endsWith("REFUNDED") ? "refunded" : "reversed";
+    await restorePreviousEntitlement(env, payment, state, "PayPal " + state + ": piano a pagamento ritirato automaticamente.");
+    return state + "_reverted";
+  }
+
+  if (type === "CUSTOMER.DISPUTE.CREATED" || type === "CUSTOMER.DISPUTE.UPDATED") {
+    const linked = await disputePayment(env, resource);
+    if (!linked?.payment) return "dispute_unmatched";
+    await restorePreviousEntitlement(env, linked.payment, "disputed", "Contestazione PayPal aperta: piano a pagamento sospeso automaticamente.");
+    return "dispute_suspended";
+  }
+
+  if (type === "CUSTOMER.DISPUTE.RESOLVED") {
+    const linked = await disputePayment(env, resource);
+    if (!linked?.payment) return "resolved_dispute_unmatched";
+    const outcome = String(linked.details?.outcome_code || linked.details?.dispute_outcome?.outcome_code || "");
+    if (["RESOLVED_SELLER_FAVOUR","CANCELED_BY_BUYER"].includes(outcome) && linked.payment.provider_capture_id) {
+      const capture = await confirmPayPalCapture(env, linked.payment.provider_capture_id);
+      if (String(capture.status || "") === "COMPLETED") {
+        await activatePaidEntitlement(env, linked.payment, capture);
+        return "dispute_resolved_reactivated";
+      }
+    }
+    await restorePreviousEntitlement(env, linked.payment, "disputed", "Contestazione PayPal risolta senza esito idoneo alla riattivazione automatica.");
+    return "dispute_resolved_kept_suspended";
+  }
+
+  if (type === "PAYMENT.CAPTURE.DENIED" || type === "CHECKOUT.PAYMENT-APPROVAL.REVERSED") {
+    const payment = await paymentFromResource(env, resource);
+    if (payment) await env.DB.prepare("UPDATE payments SET status='failed',updated_at=?2 WHERE id=?1")
+      .bind(payment.id, new Date().toISOString()).run();
+    return "payment_failed";
+  }
+
+  return "pending_no_activation";
+}
+
+async function paypalWebhook(request, env) {
+  await ensurePaymentSchema(env);
+  const length = Number(request.headers.get("content-length") || 0);
+  if (length > 1024 * 1024) return json({ ok: false, error: "payload_too_large" }, 413);
+  let event = {};
+  try { event = await request.json(); } catch { return json({ ok: false, error: "invalid_json" }, 400); }
+  const eventId = String(event?.id || "");
+  const eventType = String(event?.event_type || "");
+  if (!eventId || !eventType) return json({ ok: false, error: "invalid_webhook" }, 400);
+  if (!String(env.PAYPAL_CLIENT_ID || "") || !String(env.PAYPAL_CLIENT_SECRET || "") || !String(env.PAYPAL_WEBHOOK_ID || "")) {
+    return json({ ok: false, error: "paypal_not_configured" }, 503);
+  }
+  const verified = await verifyPayPalWebhook(request, env, event);
+  if (!verified) return json({ ok: false, error: "invalid_webhook_signature" }, 401);
+
+  const now = new Date().toISOString();
+  const transmissionId = request.headers.get("paypal-transmission-id") || "";
+  const resourceId = String(event?.resource?.id || event?.resource?.dispute_id || "");
+  const inserted = await env.DB.prepare(`
+    INSERT OR IGNORE INTO payment_events(event_id,event_type,transmission_id,resource_id,result,received_at)
+    VALUES(?1,?2,?3,?4,'processing',?5)
+  `).bind(eventId, eventType, transmissionId, resourceId, now).run();
+  if (Number(inserted?.meta?.changes || 0) === 0) return json({ ok: true, duplicate: true });
+
+  try {
+    const result = await processPayPalWebhookEvent(env, event);
+    await env.DB.prepare(
+      "UPDATE payment_events SET result=?2,processed_at=?3 WHERE event_id=?1"
+    ).bind(eventId, result, new Date().toISOString()).run();
+    return json({ ok: true });
+  } catch (error) {
+    await env.DB.prepare("DELETE FROM payment_events WHERE event_id=?1").bind(eventId).run().catch(() => {});
+    throw error;
+  }
+}
+
 function adminAuthorized(request, env) {
   const expected = String(env.ADMIN_API_KEY || "");
   if (!expected) return false;
@@ -270,6 +784,7 @@ async function resolveLicense(request, env) {
 
 async function grantEntitlement(request, env) {
   if (!adminAuthorized(request, env)) return json({ ok: false, error: "unauthorized" }, 401);
+  await ensurePaymentSchema(env);
   let body = {};
   try { body = await request.json(); } catch {}
   const dossierId = cleanDossierId(body.dossierId);
@@ -294,6 +809,7 @@ async function grantEntitlement(request, env) {
       plan=excluded.plan,
       status='active',
       source=excluded.source,
+      source_ref=NULL,
       note=excluded.note,
       valid_until=excluded.valid_until,
       updated_at=excluded.updated_at
@@ -309,13 +825,14 @@ async function grantEntitlement(request, env) {
 
 async function revokeEntitlement(request, env) {
   if (!adminAuthorized(request, env)) return json({ ok: false, error: "unauthorized" }, 401);
+  await ensurePaymentSchema(env);
   let body = {};
   try { body = await request.json(); } catch {}
   const dossierId = cleanDossierId(body.dossierId);
   const note = String(body.note || "").trim().slice(0, 500);
   if (!dossierId) return json({ ok: false, error: "dossier_id_invalid" }, 400);
   const now = new Date().toISOString();
-  await env.DB.prepare("UPDATE entitlements SET status='revoked', note=?2, updated_at=?3 WHERE dossier_id=?1")
+  await env.DB.prepare("UPDATE entitlements SET status='revoked', source_ref=NULL, note=?2, updated_at=?3 WHERE dossier_id=?1")
     .bind(dossierId, note, now).run();
   await env.DB.prepare(
     "INSERT INTO entitlement_audit(dossier_id, action, plan, source, note, created_at) VALUES(?1,'revoke',NULL,'manual',?2,?3)"
@@ -458,9 +975,12 @@ export default {
     try {
       if (request.method === "GET" && url.pathname === "/health") response = json({ ok: true, service: "clinica-digitale-licenze" });
       else if (request.method === "GET" && url.pathname === "/v1/public/plans") response = json(planPricing(env));
-      else if (request.method === "GET" && url.pathname === "/admin") response = new Response(adminHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+      else if (request.method === "GET" && url.pathname === "/admin") response = new Response(adminHtml(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...securityHeaders(), "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" } });
       else if (request.method === "POST" && url.pathname === "/v1/license/resolve") response = await resolveLicense(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/usage/ping") response = await usagePing(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/create-order") response = await createPayPalOrder(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/capture-order") response = await capturePayPalOrder(request, env);
+      else if (request.method === "POST" && url.pathname === "/v1/payments/paypal/webhook") response = await paypalWebhook(request, env);
       else if (request.method === "GET" && url.pathname === "/v1/admin/usage") response = await listUsage(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/admin/entitlements") response = await grantEntitlement(request, env);
       else if (request.method === "POST" && url.pathname === "/v1/admin/revoke") response = await revokeEntitlement(request, env);
