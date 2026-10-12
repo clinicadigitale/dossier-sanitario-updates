@@ -1,0 +1,63 @@
+name: Inspect current public Windows package
+
+on:
+  push:
+    paths:
+      - ".github/workflows/inspect-public-windows.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download current public 1.0.0
+        run: |
+          curl -fL --retry 3 -o public.exe "https://github.com/clinicadigitale/dossier-sanitario-updates/releases/download/v1.0.0/ClinicaDigitale_DossierSanitario_1.0.0_WIN64.exe"
+      - name: Verify and inspect
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          p=pathlib.Path("public.exe")
+          b=p.read_bytes()
+          sha=hashlib.sha256(b).hexdigest()
+          if sha != "be964d578c9d21ad5d2befb6305576e34a79b88bb532ea545945ef89b8903694":
+              raise SystemExit("Unexpected public 1.0.0 SHA256: "+sha)
+          names=[
+            "payload/js/app.js",
+            "payload/python_engine/server.py",
+            "payload/python_engine/startup_check.py",
+            "payload/python_engine/license_manager.py",
+            "payload/index.html",
+            "payload/update_config.json",
+            "payload/diagnostics_config.json",
+            "payload/VERSIONE.txt",
+            "payload/component_policy.json",
+            "payload/component_manifest.json",
+          ]
+          with zipfile.ZipFile(p) as z:
+              info={}
+              for n in names:
+                  d=z.read(n)
+                  info[n]={"size":len(d),"sha256":hashlib.sha256(d).hexdigest()}
+              first=min(i.header_offset for i in z.infolist())
+              info["_archive"]={
+                  "size":len(b),
+                  "sha256":sha,
+                  "entries":len(z.infolist()),
+                  "zip_offset":first,
+                  "prefix_sha256":hashlib.sha256(b[:first]).hexdigest(),
+              }
+          out=pathlib.Path("windows-release/public-1.0.0-inspection.json")
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps(info,indent=2,sort_keys=True)+"\n",encoding="utf-8")
+          PY
+      - name: Save inspection report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add windows-release/public-1.0.0-inspection.json
+          git commit -m "Record verified public Windows 1.0.0 package hashes"
+          git push
