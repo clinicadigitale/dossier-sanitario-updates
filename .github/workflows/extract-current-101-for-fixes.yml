@@ -1,0 +1,45 @@
+name: Extract current Windows 1.0.1 for fixes
+
+on:
+  push:
+    paths:
+      - ".github/workflows/extract-current-101-for-fixes.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and extract current public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf windows-release/current-1.0.1
+          mkdir -p windows-release/current-1.0.1 work
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python - <<'PY'
+          import zipfile, pathlib, hashlib, json
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          print("public sha",sha)
+          with zipfile.ZipFile(p) as z:
+              files={
+                "payload/js/app.js":"app.js",
+                "payload/js/extractors.js":"extractors.js",
+                "payload/python_engine/server.py":"server.py",
+                "payload/component_manifest.json":"component_manifest.json",
+                "payload/component_policy.json":"component_policy.json",
+                "payload/VERSIONE.txt":"VERSIONE.txt",
+              }
+              for src,dst in files.items():
+                  pathlib.Path("windows-release/current-1.0.1",dst).write_bytes(z.read(src))
+          pathlib.Path("windows-release/current-1.0.1/public-sha256.txt").write_text(sha+"\n")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add windows-release/current-1.0.1
+          git commit -m "Extract current public Windows 1.0.1 sources for authorized fixes"
+          git push
