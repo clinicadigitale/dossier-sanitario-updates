@@ -1,0 +1,33 @@
+name: Export fixed public Windows 1.0.1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/export-public-101-fixed.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v1.0.1 -R "${{ github.repository }}" -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe"
+          python - <<'PY'
+          import hashlib,pathlib
+          p=pathlib.Path("ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          assert sha=="3f01fc693a89e4f1b467cfa0abe95e5b1f8bd6edf773d693bba361f748c44dd0",sha
+          assert p.stat().st_size==138897638,p.stat().st_size
+          print("verified",sha,p.stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_DossierSanitario_1.0.1_WIN64_FIXED_PUBLIC
+          path: ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe
+          retention-days: 1
+          compression-level: 0
