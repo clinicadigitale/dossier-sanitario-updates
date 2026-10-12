@@ -1,0 +1,299 @@
+name: Hotfix 1.0.1 family medication parity
+
+on:
+  push:
+    paths:
+      - ".github/workflows/hotfix-101-family-medication-parity.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download current public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work dist
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python - <<'PY'
+          import hashlib, pathlib
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          b=p.read_bytes()
+          sha=hashlib.sha256(b).hexdigest()
+          if sha != "0058c0e0dcdd6ee0af77c78df6c596f607881e6c8cdfc21be024a09dd7b4f0b9":
+              raise SystemExit("Unexpected starting 1.0.1 SHA256: "+sha)
+          print("Starting SHA256:",sha)
+          PY
+
+      - name: Apply surgical family medication fix
+        run: |
+          python - <<'PY'
+          import zipfile, json, hashlib, pathlib, py_compile, tempfile
+
+          src=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          with zipfile.ZipFile(src) as z:
+              app=z.read("payload/js/app.js").decode("utf-8")
+              server=z.read("payload/python_engine/server.py").decode("utf-8")
+              manifest=json.loads(z.read("payload/component_manifest.json"))
+              policy=json.loads(z.read("payload/component_policy.json"))
+              first=min(i.header_offset for i in z.infolist())
+          prefix=src.read_bytes()[:first]
+          expected_prefix="d5524c25c3b747080b9478fcdef5fb224dd0336224bd12f5346df7fd31d1c0ff"
+          if hashlib.sha256(prefix).hexdigest()!=expected_prefix:
+              raise SystemExit("Outer installer/bootstrap prefix changed")
+
+          old='''    const reorderDate=medicationReorderDateAdd(depletionDate,-reorderLeadDays);
+              if(!reorderDate)return null;
+
+              const sourceTherapyIds='''
+          new='''    const reorderDate=medicationReorderDateAdd(depletionDate,-reorderLeadDays);
+              if(!reorderDate)return null;
+              if(active.some(row=>String(row.reorderResolvedDate||'')===reorderDate))return null;
+
+              const sourceTherapyIds='''
+          if old not in app:
+              raise SystemExit("App reorder anchor not found")
+          app=app.replace(old,new,1)
+
+          old_detail='''function calendarDetailsHtml(row){
+              if(!row)return `<aside class="agenda-detail-panel empty"><div class="agenda-detail-empty">Seleziona una voce per visualizzare i dettagli.</div></aside>`;
+              if(row.familyMedicationGroup){const sync=calendarSyncPresentation(row);const blocks=(row.familyMedicationItems||[]).map(member=>`<section class="family-medication-member"><div>${calendarProfilePill(member.profileId)}</div><ul>${(member.items||[]).map(x=>`<li><strong>${esc(x.medication||'Farmaco')}</strong>${x.reorderDate?`<span>Richiesta prevista ${formatDate(x.reorderDate)}</span>`:''}</li>`).join('')}</ul></section>`).join('');return `<aside class="agenda-detail-panel family-medication-detail"><div class="agenda-detail-head"><div><span class="agenda-detail-icon violet medication-semantic-icon">${uiIconSvg('therapy')}</span><div><h3>Richiesta farmaci famiglia</h3><span class="badge">Evento aggregato</span></div></div><span class="badge agenda-sync-pill ${sync.cls}">${esc(sync.label)}</span></div><div class="agenda-detail-list"><div><span>Data</span><strong>${formatDate(row.startDate)}</strong></div><div><span>Regola</span><strong>Un solo evento per le richieste comprese nella finestra familiare</strong></div></div><div class="family-medication-members">${blocks}</div><div class="notice">Ogni farmaco mantiene il proprio titolare. Le singole richieste restano tecnicamente separate nei profili, ma Agenda, Windows e Google Calendar usano questo unico evento aggregato.</div></aside>`;}
+          '''
+          new_detail='''function calendarDetailsHtml(row){
+              if(!row)return `<aside class="agenda-detail-panel empty"><div class="agenda-detail-empty">Seleziona una voce per visualizzare i dettagli.</div></aside>`;
+              if(row.familyMedicationGroup){const sync=calendarSyncPresentation(row);const blocks=(row.familyMedicationItems||[]).map(member=>{const canResolve=calendarCanManageProfile(member.profileId,'medications');return `<section class="family-medication-member"><div>${calendarProfilePill(member.profileId)}</div><ul>${(member.items||[]).map(x=>`<li><strong>${esc(x.medication||'Farmaco')}</strong>${x.reorderDate?`<span>Richiesta prevista ${formatDate(x.reorderDate)}</span>`:''}<button type="button" class="btn btn-light btn-small" data-family-medication-resolve="1" data-profile-id="${esc(member.profileId)}" data-stock-key="${esc(x.stockKey||'')}" data-reorder-date="${esc(x.reorderDate||member.startDate||'')}" data-medication="${esc(x.medication||'Farmaco')}" ${canResolve&&x.stockKey?'':'disabled'}>Risolto</button></li>`).join('')}</ul></section>`;}).join('');return `<aside class="agenda-detail-panel family-medication-detail"><div class="agenda-detail-head"><div><span class="agenda-detail-icon violet medication-semantic-icon">${uiIconSvg('therapy')}</span><div><h3>Richiesta farmaci famiglia</h3><span class="badge">Evento aggregato</span></div></div><span class="badge agenda-sync-pill ${sync.cls}">${esc(sync.label)}</span></div><div class="agenda-detail-list"><div><span>Data</span><strong>${formatDate(row.startDate)}</strong></div><div><span>Regola</span><strong>Un solo evento per le richieste comprese nella finestra familiare</strong></div></div><div class="family-medication-members">${blocks}</div><div class="notice">Ogni farmaco mantiene il proprio titolare. Usa “Risolto” solo per la singola richiesta effettivamente gestita: le altre, comprese quelle future, restano attive.</div></aside>`;}
+          '''
+          if old_detail not in app:
+              raise SystemExit("Family detail anchor not found")
+          app=app.replace(old_detail,new_detail,1)
+
+          anchor='''  async function refreshCalendarProviderState(){
+          '''
+          func='''  async function resolveFamilyMedicationRequest(profileId='',stockKey='',reorderDate='',medication='Farmaco') {
+              const pid=String(profileId||''),key=String(stockKey||''),date=String(reorderDate||'').slice(0,10);
+              if(!pid||!key||!/^\\d{4}-\\d{2}-\\d{2}$/.test(date))return;
+              if(!calendarCanManageProfile(pid,'medications')){toast('Non hai i permessi per modificare le richieste farmaci di questo profilo');return;}
+              if(!confirm(`Segnare come risolta la richiesta per ${medication||'questo farmaco'} del ${formatDate(date)}?`))return;
+              const therapies=await DossierDB.byProfile('therapies',pid);
+              const matched=(therapies||[]).filter(row=>medicationStockKey(row)===key);
+              if(!matched.length){toast('Richiesta farmaco non trovata');return;}
+              const now=new Date().toISOString();
+              for(const row of matched){await DossierDB.put('therapies',{...row,reorderResolvedDate:date,reorderResolvedAt:now,updatedAt:now},{details:{event:'therapy-reorder-resolved-agenda',reorderDate:date}});}
+              const profile=calendarProfileMeta(pid)||state.profiles.find(p=>String(p.id)===pid)||{id:pid};
+              await syncMedicationReorderAgenda(profile);
+              if(String(state.activeProfileId)===pid)state.therapies=await DossierDB.byProfile('therapies',pid);
+              await loadFamilyAgendaContext();
+              await syncLocalCalendarAlerts({silent:true,force:true});
+              await syncAuthorizedCalendarToGoogle({silent:true,force:true});
+              toast(`${medication||'Farmaco'}: richiesta segnata come risolta`);
+              if(state.activeView==='calendar')await renderCalendar({refreshProviders:false});
+            }
+
+          '''
+          if anchor not in app:
+              raise SystemExit("Calendar provider anchor not found")
+          app=app.replace(anchor,func+anchor,1)
+
+          old_bind='''    $$('[data-calendar-delete]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();deleteCalendarEvent(b.dataset.calendarDelete);}));$$('[data-calendar-complete]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();completeCalendarEvent(b.dataset.calendarComplete);}));$$('[data-calendar-export]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const row=calendarVisibleEventById(b.dataset.calendarExport);if(row)openCalendarTargetModal(row);}));$$('[data-calendar-resolve-duplicate]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openCalendarBookingDuplicateResolutionModal(b.dataset.calendarResolveDuplicate);}));
+          '''
+          if old_bind not in app:
+              raise SystemExit("Calendar action anchor not found")
+          app=app.replace(old_bind,old_bind+'''    $$('[data-family-medication-resolve]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();void resolveFamilyMedicationRequest(b.dataset.profileId,b.dataset.stockKey,b.dataset.reorderDate,b.dataset.medication);}));
+          ''',1)
+
+          start=server.index("def _medication_profile_groups(profile: dict) -> list:")
+          end=server.index("\n\ndef _medication_group_id",start)
+          new_groups='''def _medication_profile_groups(profile: dict) -> list:
+              stocks_map = {str(k): v for k, v in (profile.get("stocks") or {}).items() if isinstance(v, dict)}
+              event_map = profile.get("eventStockKeys") if isinstance(profile.get("eventStockKeys"), dict) else {}
+
+              # L'Agenda definisce i gruppi operativi: Windows deve usare esattamente
+              # gli stessi confini e non deve ricombinare eventi familiari distinti.
+              mapped_groups = []
+              seen = set()
+              for event_id, raw_keys in event_map.items():
+                  keys = [str(k) for k in (raw_keys or []) if str(k) in stocks_map]
+                  signature = tuple(sorted(set(keys)))
+                  if not signature or signature in seen:
+                      continue
+                  group = [stocks_map[k] for k in signature]
+                  group = [x for x in group if _medication_parse_date(x.get("depletionDate")) and _medication_parse_date(x.get("reorderDate"))]
+                  if not group:
+                      continue
+                  seen.add(signature)
+                  mapped_groups.append(group)
+              if mapped_groups:
+                  mapped_groups.sort(key=lambda group: str(min((x.get("reorderDate") or "9999-12-31") for x in group)))
+                  return mapped_groups
+
+              # Compatibilita' con stati Windows legacy privi della mappa eventi.
+              stocks = [x for x in stocks_map.values() if _medication_parse_date(x.get("depletionDate")) and _medication_parse_date(x.get("reorderDate"))]
+              prescription = sorted([x for x in stocks if x.get("requiresPrescription") is not False], key=lambda x: (str(x.get("reorderDate") or "9999-12-31"), str(x.get("medication") or "").casefold()))
+              purchase = sorted([x for x in stocks if x.get("requiresPrescription") is False], key=lambda x: (str(x.get("reorderDate") or "9999-12-31"), str(x.get("medication") or "").casefold()))
+              gap = max(0, min(10, int(profile.get("groupDays", 7) or 0)))
+              groups = []
+              for stock in prescription:
+                  if not groups:
+                      groups.append([stock]); continue
+                  a = _medication_parse_date(groups[-1][0].get("reorderDate")); b = _medication_parse_date(stock.get("reorderDate"))
+                  if not a or not b or (b-a).days > gap: groups.append([stock])
+                  else: groups[-1].append(stock)
+              groups.extend([[stock] for stock in purchase])
+              groups.sort(key=lambda group: str((group[0] if group else {}).get("reorderDate") or "9999-12-31"))
+              return groups
+          '''
+          server=server[:start]+new_groups+server[end:]
+
+          app_bytes=app.encode("utf-8")
+          server_bytes=server.encode("utf-8")
+          policy["authorizedFamilyMedicationAgendaParityR15"]={
+              "release":"1.0.1","date":"2026-10-12",
+              "scope":"Correzione chirurgica Agenda/Windows per richieste farmaci familiari; nessun incremento versione.",
+              "changedTrackedFiles":["payload/js/app.js","payload/python_engine/server.py","payload/component_policy.json","payload/component_manifest.json"],
+              "behavior":[
+                  "Windows usa esattamente gli stessi gruppi di richieste farmaci mostrati dall Agenda, senza ricombinare eventi familiari distinti.",
+                  "Scorte orfane di vecchie programmazioni Windows non generano avvisi se non sono referenziate da un evento Agenda corrente.",
+                  "Nel dettaglio dell evento famiglia ogni singola richiesta farmaco puo essere segnata Risolto senza chiudere le richieste future o degli altri membri.",
+                  "Una richiesta risolta resta esclusa solo per la specifica data di riordino corrente; un nuovo ciclo con nuova data torna automaticamente attivo."
+              ],
+              "untouched":["versione 1.0.1","installer/bootstrap","cloud","licensing","parser","DICOM/MPR","PDF","dati non coinvolti"]
+          }
+          policy_bytes=(json.dumps(policy,ensure_ascii=False,indent=2)+"\n").encode("utf-8")
+
+          replacements={
+              "payload/js/app.js":app_bytes,
+              "payload/python_engine/server.py":server_bytes,
+          }
+          for ent in manifest["files"]:
+              if ent["path"] in replacements:
+                  data=replacements[ent["path"]]
+                  ent["sha256"]=hashlib.sha256(data).hexdigest()
+                  ent["size"]=len(data)
+          for comp_name, comp in manifest.get("components",{}).items():
+              rows=[e for e in manifest["files"] if e.get("component")==comp_name]
+              h=hashlib.sha256(); total=0
+              for e in sorted(rows,key=lambda x:x["path"]):
+                  total += int(e["size"])
+                  h.update(f'{e["path"]}\0{e["sha256"]}\0{e["size"]}\n'.encode("utf-8"))
+              comp["sha256"]=h.hexdigest(); comp["fileCount"]=len(rows); comp["bytes"]=total
+          manifest["authorizedFamilyMedicationAgendaParityR15"]={
+              "release":"1.0.1","date":"2026-10-12",
+              "changedTrackedFiles":["payload/js/app.js","payload/python_engine/server.py"],
+              "scope":["Agenda and Windows medication-family grouping parity","per-request resolved action in family Agenda","version unchanged and public 1.0.1 overwritten"]
+          }
+          replacements["payload/component_policy.json"]=policy_bytes
+          replacements["payload/component_manifest.json"]=(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n").encode("utf-8")
+
+          out=pathlib.Path("dist/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          with out.open("wb") as fh:
+              fh.write(prefix)
+          with zipfile.ZipFile(src,"r") as zin, zipfile.ZipFile(out,"a",allowZip64=True) as zout:
+              for info in zin.infolist():
+                  data=replacements.get(info.filename,zin.read(info.filename))
+                  zi=zipfile.ZipInfo(info.filename,date_time=info.date_time)
+                  zi.compress_type=info.compress_type;zi.comment=info.comment;zi.extra=info.extra
+                  zi.internal_attr=info.internal_attr;zi.external_attr=info.external_attr
+                  zi.create_system=info.create_system;zi.create_version=info.create_version
+                  zi.extract_version=info.extract_version;zi.flag_bits=info.flag_bits
+                  zout.writestr(zi,data,compress_type=info.compress_type,compresslevel=9 if info.compress_type==zipfile.ZIP_DEFLATED else None)
+
+          with zipfile.ZipFile(out) as z:
+              if z.testzip() is not None: raise SystemExit("ZIP integrity failure")
+              if json.loads(z.read("payload/component_manifest.json"))["release"]!="1.0.1": raise SystemExit("Version changed")
+              pathlib.Path("work/final-app.js").write_bytes(z.read("payload/js/app.js"))
+              pathlib.Path("work/final-server.py").write_bytes(z.read("payload/python_engine/server.py"))
+
+          sha=hashlib.sha256(out.read_bytes()).hexdigest()
+          pathlib.Path("work/new-sha.txt").write_text(sha)
+          pathlib.Path("work/new-size.txt").write_text(str(out.stat().st_size))
+          print("New SHA256:",sha,"size:",out.stat().st_size)
+          PY
+
+      - name: Validate corrected package
+        run: |
+          node --check work/final-app.js
+          python -m py_compile work/final-server.py
+          python - <<'PY'
+          import ast, datetime, pathlib
+          s=pathlib.Path("work/final-server.py").read_text(encoding="utf-8")
+          tree=ast.parse(s)
+          wanted={"_medication_parse_date","_medication_profile_groups"}
+          body=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name in wanted]
+          ns={"datetime":datetime}
+          exec(compile(ast.Module(body=body,type_ignores=[]),"<unit>","exec"),ns)
+          f=ns["_medication_profile_groups"]
+          profile={
+            "groupDays":10,
+            "stocks":{
+              "a":{"stockKey":"a","reorderDate":"2026-10-11","depletionDate":"2026-10-20","medication":"A"},
+              "b":{"stockKey":"b","reorderDate":"2026-10-19","depletionDate":"2026-10-28","medication":"B"},
+              "c":{"stockKey":"c","reorderDate":"2026-10-22","depletionDate":"2026-10-31","medication":"C"},
+              "orphan":{"stockKey":"orphan","reorderDate":"2026-10-10","depletionDate":"2026-10-18","medication":"ORPHAN","backgroundAdvanced":True},
+            },
+            "eventStockKeys":{"agenda-event-1":["a","b"],"agenda-event-2":["c"]}
+          }
+          groups=f(profile)
+          assert [[x["stockKey"] for x in g] for g in groups]==[["a","b"],["c"]], groups
+          app=pathlib.Path("work/final-app.js").read_text(encoding="utf-8")
+          assert "reorderResolvedDate" in app
+          assert "data-family-medication-resolve" in app
+          assert "resolveFamilyMedicationRequest" in app
+          print("Functional precheck PASS")
+          PY
+
+      - name: Overwrite public 1.0.1 asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v1.0.1 "dist/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" --clobber
+          gh release edit v1.0.1 --notes "Aggiornamento Windows 1.0.1.
+
+Corretto il comportamento degli avvisi Windows nei Dossier familiari: gli avvisi previsti nello stesso momento per più membri vengono raccolti in un'unica notifica invece di generare finestre separate.
+
+Corretto l'allineamento tra Agenda e avvisi Windows per le richieste farmaci familiari: Windows usa ora gli stessi gruppi mostrati in Agenda e non include richieste appartenenti a eventi familiari diversi.
+
+Nel dettaglio dell'evento familiare è ora possibile segnare come Risolta una singola richiesta farmaco senza chiudere le richieste future o quelle degli altri membri.
+
+La versione resta 1.0.1, sovrascritta come richiesto."
+
+      - name: Update stable metadata without changing version
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path("stable.json")
+          data=json.loads(p.read_text(encoding="utf-8"))
+          assert data["version"]=="1.0.1"
+          data["sha256"]=pathlib.Path("work/new-sha.txt").read_text().strip()
+          data["size"]=int(pathlib.Path("work/new-size.txt").read_text().strip())
+          notes=list(data.get("releaseNotes") or [])
+          new_note="Agenda e avvisi Windows allineati per le richieste farmaci familiari; aggiunto Risolto per la singola richiesta senza chiudere quelle future."
+          if new_note not in notes: notes.insert(1,new_note)
+          data["releaseNotes"]=notes
+          p.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stable.json
+          git commit -m "Overwrite Windows 1.0.1 with family medication parity fix"
+          git push
+
+      - name: Verify public asset matches stable metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -f work/public-fixed.exe
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work --clobber
+          python - <<'PY'
+          import hashlib,json,pathlib
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          stable=json.loads(pathlib.Path("stable.json").read_text(encoding="utf-8"))
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          assert sha==stable["sha256"],(sha,stable["sha256"])
+          assert p.stat().st_size==stable["size"],(p.stat().st_size,stable["size"])
+          print("PUBLIC 1.0.1 VERIFIED",sha,p.stat().st_size)
+          PY
