@@ -395,5 +395,32 @@
       "PDF",
       "dati non coinvolti"
     ]
+  },
+  "authorizedAgendaClassifierR31": {
+    "release": "1.0.1",
+    "date": "2026-10-12",
+    "scope": "Correzione chirurgica Agenda farmaci famiglia e classificazione documentale da intestazione; versione invariata.",
+    "agenda": [
+      "La vista famiglia riallinea le richieste farmaci di tutti i profili visibili prima di costruire gli eventi aggregati.",
+      "Un evento famiglia si risolve con un solo comando; tutte le richieste contenute vengono chiuse insieme.",
+      "Gli eventi successivi non vengono chiusi.",
+      "Windows e Agenda continuano a usare lo stesso evento aggregato."
+    ],
+    "classification": [
+      "Se il classificatore resta generico ma il documento contiene un titolo clinico interno forte, il titolo interno prevale.",
+      "Reparto/UO nell'intestazione determina la specializzazione quando disponibile.",
+      "La struttura privilegia ente sanitario e UO rispetto a una intestazione generica di dipartimento.",
+      "Nome file resta solo conferma secondaria; nessun OCR aggiuntivo."
+    ],
+    "untouched": [
+      "versione 1.0.1",
+      "installer/bootstrap",
+      "cloud",
+      "licensing",
+      "backup",
+      "PDF",
+      "grafici",
+      "parser OCR"
+    ]
   }
 }

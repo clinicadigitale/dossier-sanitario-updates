@@ -78,9 +78,9 @@
   },
   "components": {
     "app": {
-      "sha256": "03981b7b11be6ab16682fef442eadb949c628023303f5f1eb62da46060287379",
+      "sha256": "ed5c6f72f8b079ef641a458d88ed9f83602c7ab8e4fe24cccda460e377636611",
       "fileCount": 72,
-      "bytes": 6826672,
+      "bytes": 6837275,
       "aggregateAlgorithm": "sha256(path\\0file_sha256\\0size\\n), sorted by path"
     },
     "core": {
@@ -322,8 +322,8 @@
     {
       "path": "payload/js/app.js",
       "component": "app",
-      "sha256": "0db0102f2d80564f8b9cf3042a11bbd596900aa7ca13857179f81d41f797b6c9",
-      "size": 910045
+      "sha256": "1d16080ebba6b6e6f6a5cf5f6fc5c223cbf627c9b52f751cdd03ebef0e2ff56a",
+      "size": 911876
     },
     {
       "path": "payload/js/calendar.js",
@@ -382,8 +382,8 @@
     {
       "path": "payload/js/extractors.js",
       "component": "app",
-      "sha256": "6404964100885f61f84967ffeb5d436673b67c78af9f90301ad6a660611c57ab",
-      "size": 654330
+      "sha256": "c98daa86a758ccf7ef7b806700e5c4d34e59326e3a22290d64d5679cfd6ea4db",
+      "size": 663102
     },
     {
       "path": "payload/js/features.js",
