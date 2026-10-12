@@ -61,6 +61,8 @@ jobs:
           const called=[];
           const DossierFeatures={has:(x)=>x==='reorderAutomation'||x==='familyDossier'};
           const DossierSecurity={canViewAgendaProfile:()=>true,canManageAgendaMedications:()=>true};
+          globalThis.DossierFeatures=DossierFeatures;
+          globalThis.DossierSecurity=DossierSecurity;
           const DossierDB={
             getAll:async()=>[{id:'daniele'},{id:'gaia'},{id:'maria'}],
             byProfile:async()=>[]
