@@ -251,15 +251,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload v1.0.1 "dist/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" --clobber
-          gh release edit v1.0.1 --notes "Aggiornamento Windows 1.0.1.
+          cat > work/release-notes.txt <<'EOF'
+          Aggiornamento Windows 1.0.1.
 
-Corretto il comportamento degli avvisi Windows nei Dossier familiari: gli avvisi previsti nello stesso momento per più membri vengono raccolti in un'unica notifica invece di generare finestre separate.
+          Corretto il comportamento degli avvisi Windows nei Dossier familiari: gli avvisi previsti nello stesso momento per più membri vengono raccolti in un'unica notifica invece di generare finestre separate.
 
-Corretto l'allineamento tra Agenda e avvisi Windows per le richieste farmaci familiari: Windows usa ora gli stessi gruppi mostrati in Agenda e non include richieste appartenenti a eventi familiari diversi.
+          Corretto l'allineamento tra Agenda e avvisi Windows per le richieste farmaci familiari: Windows usa ora gli stessi gruppi mostrati in Agenda e non include richieste appartenenti a eventi familiari diversi.
 
-Nel dettaglio dell'evento familiare è ora possibile segnare come Risolta una singola richiesta farmaco senza chiudere le richieste future o quelle degli altri membri.
+          Nel dettaglio dell'evento familiare è ora possibile segnare come Risolta una singola richiesta farmaco senza chiudere le richieste future o quelle degli altri membri.
 
-La versione resta 1.0.1, sovrascritta come richiesto."
+          La versione resta 1.0.1, sovrascritta come richiesto.
+          EOF
+          gh release edit v1.0.1 --notes-file work/release-notes.txt
 
       - name: Update stable metadata without changing version
         run: |
