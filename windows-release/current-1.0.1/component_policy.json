@@ -1,0 +1,399 @@
+{
+  "schema": 3,
+  "release": "1.0.1",
+  "baseRelease": "SAFETY_FIX6 clinical/safety payload with the window-launch regression rolled back to the real-Windows-validated FIX5 app-style path.",
+  "rule": "Windows V13 FIX7 visual redesign on frozen V11. Authorized scope: transversal presentation refresh across Windows views; compact Preferences and Backup; compact Timeline; unified typography/cards/buttons; Agenda two-pane list with simple/extended presentation, per-event Windows/Google alert status, right-side details and online map preview when a location is present; dashboard graph preference; 4/6-column PDF graph selector. Functional clinical, parser, therapies, security, cloud, authentication and frozen binaries remain unchanged from V11.",
+  "components": {
+    "app": {
+      "sha256": "4a6799a94df032fdb7a72acbeff36a7619ea500f93e829a2dd3535c2b60f17a6",
+      "fileCount": 72,
+      "bytes": 6824369,
+      "aggregateAlgorithm": "sha256(path\\0file_sha256\\0size\\n), sorted by path"
+    },
+    "core": {
+      "sha256": "c97f0115fe181176a8a038d4c125666e295272d57b68586f7426ff5fad306527",
+      "fileCount": 2079,
+      "bytes": 295650099,
+      "aggregateAlgorithm": "sha256(path\\0file_sha256\\0size\\n), sorted by path"
+    },
+    "installer": {
+      "sha256": "08908e50175de0dfdc202227eb957b648f0fe465212a5fa3c61ae44cc0e8fc87",
+      "fileCount": 6,
+      "bytes": 15161699,
+      "aggregateAlgorithm": "sha256(path\\0file_sha256\\0size\\n), sorted by path"
+    }
+  },
+  "releaseGate": {
+    "outerBootstrapPrefixMustEqual": "d67070d23e33b60dee6d3810d35ebe77d33ad74cfa844da906a30ffb0449ff9b",
+    "outerBootstrapPrefixSizeMustEqual": 2023424,
+    "outerBootstrapMustHave": [
+      "PE32+",
+      "rsrc",
+      "RT_ICON",
+      "RT_GROUP_ICON",
+      "RT_MANIFEST"
+    ],
+    "topLevelInstallerAliasesMustMatch": true,
+    "parserCoreMustEqualApprovedR30": {
+      "payload/python_engine/dossier_engine.py": "7ef5a23724b5dee78f8615f39d8aa77cf68741f54b0161ddbc883269adba11c2",
+      "payload/js/extractors.js": "3fec6c4c3845dd58932da66093dcc77a080e7b9559ac514569d21f79a37b91a8"
+    },
+    "unchangedInstallerFiles": [],
+    "launchWrapper": {
+      "payload/Dossier Sanitario Locale.exe": "9b03b0c851f310cdbe6a1311c771ff18a0e4515187a26136495ad4b9d0a471bd",
+      "payload/ClinicaDigitaleStartHost.exe": "9b03b0c851f310cdbe6a1311c771ff18a0e4515187a26136495ad4b9d0a471bd",
+      "payload/ClinicaDigitaleAppLauncher.exe": "e751b89835e04ffaeddd75607353f3503d8a9e56fd1c3774f6ce8e7f14a9ba45"
+    },
+    "frozenR36Areas": {
+      "outerBootstrapSha256": "3869a93ba6894880cab995e375eeb5e3e6c346191b89f2465779701291269169",
+      "therapiesModuleSha256": "e0648d1572978030d8a91e317a1214e6388b8da49ee67cd50265c3952b2de9a1",
+      "aifaDatasetSha256": "9ef9552492aebef1e367a6477c099b5489c86724718a2f612842bb1fc9b55597",
+      "appLauncherSha256": "e751b89835e04ffaeddd75607353f3503d8a9e56fd1c3774f6ce8e7f14a9ba45",
+      "startHostSha256": "9b03b0c851f310cdbe6a1311c771ff18a0e4515187a26136495ad4b9d0a471bd",
+      "therapiesBehavior": "R35/R36 approved therapies remain frozen in medicines.js/AIFA data; R39 does not alter therapy rendering/repair/propagation logic.",
+      "parserImportPhotoBehavior": "Approved R30 parser files and OCR/import-photo modules remain unchanged."
+    },
+    "authorizedR39Fixes": [
+      "Diagnoses: move the screen-only Vista compatta/Vista estesa selector inside Quadro clinico principale and make it affect only the main-problem cards",
+      "Diagnoses: keep Tabella completa always extended, with Note ed evoluzione and full linked history visible regardless of the main-card view mode; Ordina per remains table-specific",
+      "Sidebar: stop stretching navigation rows to fill tall screens; use compact fixed spacing and progressive height-based compression without reducing the base font",
+      "Sidebar: keep navigation scrollable only as a safety fallback while hiding the visible scrollbar; normal supported heights should fit through adaptive spacing",
+      "Preserve all R38 approved Preferences, Compare, Diagnoses cleanup, typography, cloud behavior, installer, therapies and parser/import-photo behavior",
+      "Version/check tokens updated to R39 only"
+    ],
+    "authorizedPublicBeta1Packaging": [
+      "Remove R39 from public-facing version labels only",
+      "Public Beta 1 originally kept internal r39 client/server/cache tokens unchanged; R41 is explicitly authorized to advance only those internal anti-stale tokens to r41 while keeping public display version 1.0.0 BETA 1 unchanged.",
+      "Resize the sidebar brand tile to a square white 46px container with a 3px white margin around the icon on normal desktop heights",
+      "Preserve all R39 functional behavior and frozen installer/parser/therapies components"
+    ],
+    "authorizedR40Fixes": [
+      "Cloud restore: when rclone RC operations/list returns an empty list for a valid newly configured remote, fall back to rclone lsjson using the same verified executable/configuration.",
+      "Cloud stat: when rclone RC cannot see a valid remote path, fall back to the existing direct rclone lsjson --stat path.",
+      "Cloud download/copy: when rclone RC copyfile fails, fall back to direct rclone copyto so archive.json and other cloud files remain readable.",
+      "Startup gate: require the R40 cloud fallback tokens while preserving all R39 public/cache tokens and all frozen components."
+    ],
+    "authorizedR41Fixes": [
+      "MEGA restore: preserve the direct standard-archive discovery, precise diagnostics, temporary restore-remote cleanup, and list/stat/copy CLI fallbacks already validated on a real Windows 11 restore.",
+      "First setup: do not request a cloud provider before local identity creation; offer new Dossier, private personal account for a family invitation, invitation association, or local-backup restore. Cloud setup is offered only after login or through Backup/restore.",
+      "Private family accounts: a non-administrator creates and keeps their own username/password; the administrator never receives the plaintext password. The first family association migrates/replaces any legacy administrator-created account for the same profile.",
+      "Family invitation: administrator selects an existing clinical profile and recipient email; the app creates a one-time expiring invitation. Request and approval/grant payloads use per-device ECDH P-256 plus AES-GCM encryption; clinical data and plaintext provider credentials are never placed in the email body.",
+      "Family cloud association: the approved device imports the encrypted family-cloud connection and archive recovery material, restores clinical data without replacing the member local credential record, then applies the invited profile and permissions.",
+      "Logout: keep the existing real /api/auth/logout behavior and rename the visible command from Blocca adesso/Blocca archivio to Logout.",
+      "Desktop/Start Menu launch: if the local engine is already healthy, reopen the browser UI instead of exiting silently; if the recorded bundled engine process is stale, recover it conservatively; repair per-user shortcuts to the unchanged AppLauncher with the official icon.",
+      "Windows minimum: bundled startup verifier and engine reject Windows versions earlier than Windows 10.",
+      "Preserve frozen binaries and all R39/public clinical/UI areas outside this explicit scope.",
+      "Agenda: replace the per-appointment Esporta .ics action with Aggiungi al calendario; offer direct pre-filled Google Calendar creation without OAuth plus explicit .ics download for Outlook, Apple Calendar and other compatible calendars. Keep bulk agenda .ics export unchanged.",
+      "R41 anti-stale update: advance only internal UI/cache/client revision tokens to 1.0.0-beta.1-20260820-r41-final / r41-final; keep public display version unchanged.",
+      "R41 upgrade takeover: /api/health publishes uiVersion; a newly launched R41 detects a healthy older local engine, requests its local lifecycle shutdown, waits for fixed ports to be released, then starts the new engine. A same-R41 healthy engine is simply reopened.",
+      "Agenda final behavior: whole-agenda export remains .ics; each individual appointment shows Aggiungi al calendario and opens a chooser with direct prefilled Google Calendar or explicit .ics fallback.",
+      "Agenda preferred account: Preferences keeps the optional Google Calendar account email for the standard authuser browser-link mode. This standard path remains OAuth-free; the separate advanced integration is opt-in and local-only.",
+      "Agenda reminders: appointment reminder choices include 90 minutes (1 hour 30 minutes) before the appointment; the existing local Windows scheduler and .ics VALARM accept the same minute value without special-case code.",
+      "Agenda advanced Google Calendar: optional per-device bring-your-own Google Desktop OAuth client. The standard non-OAuth browser/.ics mode remains available to every user.",
+      "OAuth locality/security: Client ID/secret and refresh/access tokens are stored only under the local calendar directory protected by Windows DPAPI; they are not written to IndexedDB, family cloud data or invitation payloads.",
+      "Google Calendar sync: after the first explicit Aggiungi/Sincronizza action, a local eventId mapping is retained and subsequent edits update the same Google event instead of creating duplicates; delete/cancel removes the linked Google event.",
+      "Google reminders: advanced event payload uses useDefault=false and popup overrides matching the selected Dossier reminders, including 90 minutes / 1 hour 30 minutes.",
+      "Google standard-mode session safety: a blocked popup never navigates the Dossier tab away; the UI remains authenticated and offers an explicit new-tab link instead.",
+      "Google OAuth popup correction: open the authorization tab synchronously in the user click before the asynchronous OAuth-start request; do not infer popup blocking from a null WindowProxy caused by noopener/noreferrer; keep the Dossier tab/session active and provide an explicit manual authorization button only if the browser truly refuses the initial tab.",
+      "Agenda duration: add 3 hours (180 minutes) and 4 hours (240 minutes) without altering existing choices.",
+      "Google Calendar identity: before creating any advanced OAuth event, query the selected calendar by private extended property dossierEventId. Local googleEventId mapping is only a cache, never the sole identity source.",
+      "Google Calendar duplicate protection: if multiple Google events carry the exact same private dossierEventId, keep one canonical Dossier-created event and delete only the other events carrying that exact private marker.",
+      "Google Calendar reinstall recovery: loss of local google_calendar_links_v2.json must not create a duplicate; the mapping is rebuilt from the remote private dossierEventId.",
+      "Google Calendar whole-agenda reconciliation: Agenda exposes Sincronizza agenda con Google Calendar for the active profile, with created/updated/recovered/duplicate/error counts.",
+      "Google Calendar edit behavior: when advanced OAuth is connected, saving a new or edited planned appointment synchronizes it automatically with create-or-update semantics; yearly rollover updates the same event.",
+      "Google Calendar visible state: Agenda cards show Google Calendar synchronized/not synchronized state using the local mapping rebuilt by synchronization.",
+      "Google Calendar cancellation/deletion: remote Dossier events can be found and deleted by private dossierEventId even if the local mapping was lost.",
+      "Logout placement: remove Logout from Preferences and topbar and place one Logout command at the bottom of the sidebar, visually separated from archive status, with confirmation before session logout.",
+      "R41 anti-stale tokens: advance internal UI/cache/cloud client token to r41-agenda-final / 1.0.0-beta.1-20260820-r41-agenda-final while keeping public display version 1.0.0 BETA 1 unchanged."
+    ],
+    "innerInstallerVersionLabel": "1.0.0; public Beta wording removed from installer-visible strings",
+    "outerBootstrapVersionLabel": "1.0.0; public Beta wording removed while preserving PE/resource topology",
+    "installerFilesVersionPatched": [
+      "INSTALLA_CORE_R15.exe",
+      "INSTALLA_DOSSIER_SANITARIO_LOCALE_1_0_0_WIN64.exe"
+    ],
+    "versionLabelPatchedInstallerFiles": [
+      "INSTALLA_CORE_R15.exe",
+      "INSTALLA_DOSSIER_SANITARIO_LOCALE_1_0_0_WIN64.exe"
+    ],
+    "currentInnerInstallerSha256": "73bb8d77cb5dd1d4447dddc6c83f5ab7269032d42602f2e6bbd39c4e3b6ee40b",
+    "currentInnerInstallerName": "INSTALLA_DOSSIER_SANITARIO_LOCALE_1_0_0_WIN64.exe",
+    "safety100Gate": {
+      "forbiddenPayloadFiles": [
+        "payload/tools/browser_cleanup.py",
+        "payload/uninstall_cleanup.html",
+        "payload/js/beta.js",
+        "payload/beta_config.json"
+      ],
+      "forbiddenSystemTempPatterns": [
+        "*.download"
+      ],
+      "forbiddenRuntimeTokens": [
+        "clinicadigitale://",
+        "/api/auth/invitations/create",
+        "/api/beta/",
+        "DossierBeta"
+      ],
+      "lifecycle": "loopback SSE lease + short graceful shutdown; no 90-second browser-heartbeat watchdog",
+      "uninstaller": "remove only Clinica Digitale-owned local program/data/tasks/registry/shortcuts/temp; never browser databases or unrelated processes; remote cloud data is not deleted",
+      "win32UpdateMode": "internal-validation, storeManaged=false, no executable feed/download"
+    },
+    "parserCoreBaselineNote": "Hashes above are the identical parser/extractor bytes present in both FIX9 and audited 1.0.0 WIN64. Do not roll dossier_engine.py back to an older historical R30 hash.",
+    "authorizedFIX6Fixes": [
+      "Shell: top-level native Windows host ClinicaDigitaleShell.exe; existing Chromium profile retained, no user-data-dir isolation or browser database copying.",
+      "Lifecycle: native host gives the embedded window a graceful close interval; server waits for owned shell before forced termination; no global process-name kill.",
+      "Uninstall: normal uninstall removes app/program registrations/own scheduled tasks only and preserves LocalAppData DossierSanitarioLocale, credentials, documents, backups and remote cloud.",
+      "Weight journey: robust net-progress/median-slope estimate; remote forecasts never expand the graph x-axis; non-informative forecasts become non-estimable.",
+      "Profile switch: network/Calendar maintenance runs after the selected profile is rendered and is cancelled logically when the profile changes again.",
+      "Google Calendar: official configure path preserves a DPAPI-stored client secret instead of overwriting it with an empty value; verified Client ID and calendar.events.owned scope unchanged."
+    ],
+    "authorizedBlock3V3Fixes": [
+      "P11 BLOCK2 frozen",
+      "P12 first-window icon actual DrawIconEx 78x78 at y=4 plus no transparent bitmap border",
+      "P13 final spacing fixed and bootstrap expected SHA updated",
+      "P14 uninstall preserve/delete choice, preserve default",
+      "P15 no app/core/runtime change"
+    ],
+    "authorizedBlock4Fixes": [
+      "P14: uninstall choice window with mutually exclusive options; keep all local data preselected; delete requires second explicit confirmation",
+      "P16: current path deviation is independent from forecast arrival date; robust weight trend; exact target/forecast endpoints; legend below graph; no projection truncation",
+      "P17: keep official Google Calendar Client ID and owner-only scope unchanged; detect unusable OAuth refresh as reauthorization-needed; hide raw client_secret errors; full Agenda reconciliation after successful OAuth",
+      "P18: plain-language Backup explanation for sync versus restore, restore validation, automatic logout and subsequent login/MFA",
+      "P19: prefer Edge app-mode on Windows with isolated BrowserProfile; track only the browser process launched by this engine and terminate its tree at Dossier shutdown",
+      "Owned temp hygiene: remove only exact stale ClinicaDigitale_Dossier_R35_* system-temp directories, never APP_DATA_DIR or BrowserProfile"
+    ]
+  },
+  "authorizedR41Fixes": [
+    "MEGA upload: local-to-cloud single-file transfers use direct rclone copyto into a temporary staging remote, verify remote size, atomically moveto final path, verify final size, preserve the local queue on failure, and show friendly user messages instead of raw CRITICAL errors.",
+    "Windows Apps registration: on engine startup self-heal HKCU uninstall metadata including valid UninstallString/QuietUninstallString, InstallLocation, DisplayIcon, NoModify=1 and NoRepair=1; do not add a Modify function.",
+    "Agenda reminders: keep 3-hour/4-hour durations; enforce at most five reminder selections by disabling unchecked choices after the fifth; explain the five-reminder maximum in the appointment box.",
+    "Google Calendar state: show sync badges only when Google Calendar is connected; report Synced only when syncedLocalUpdatedAt matches the current appointment updatedAt, To sync for unconfirmed local changes, and Sync failed when the latest attempt for that revision failed.",
+    "Google Calendar synchronization remains automatic on appointment Save when the optional advanced connection is active; whole-agenda sync remains visible only while connected and is explicitly described as a reconciliation command.",
+    "AIUTO: add a sidebar help page with concise chapters for organization, users/family, new devices, documents, diagnoses, therapies, compare/graphs, agenda, Google Calendar, cloud/MEGA, backup/restore, security, logout, changing computer and troubleshooting. Program naming uses Clinica Digitale - Dossier Sanitario / Dossier Sanitario rather than Clinica Digitale alone.",
+    "First use: before account setup on a fresh local installation, require acknowledgement of a concise first-use notice; cloud remains optional and free to use within available provider options, and external integrations remain optional.",
+    "Password recovery: account setup requires email plus personal recovery question/answer; answer is PBKDF2-hashed and never stored in plaintext; password recovery can use email + secret answer with temporary lock after five failures; Preferences exposes Change password and Modify recovery question; existing one-time recovery codes remain available.",
+    "MEGA read path: remote single files are read with direct rclone cat in binary mode, never operations/copyfile to a Windows temp destination; exact real-world CRITICAL path error is normalized to a user-safe message and the local queue is preserved.",
+    "First-use acknowledgement: stored under local application data by the local engine, checked before both login and account setup, removed by full local uninstall; no browser localStorage dependency."
+  ],
+  "innerInstallerVersionLabel": "1.0.0; public Beta wording removed from installer-visible strings",
+  "outerBootstrapVersionLabel": "1.0.0; public Beta wording removed while preserving PE/resource topology",
+  "installerFilesVersionPatched": [
+    "INSTALLA_CORE_R15.exe",
+    "INSTALLA_DOSSIER_SANITARIO_LOCALE_1_0_0_WIN64.exe"
+  ],
+  "authorized100Fixes": [
+    "Family access: administrator generates a one-time 48-hour provisional access bound to an existing profile; member creates definitive private credentials and personal TOTP before family health-data access.",
+    "Legacy adult accounts: preserve the existing account/profile link but require private credential personalization; if family cloud is active, require personal TOTP before opening health data.",
+    "Migration: adult export remains single-profile, encrypted and self-verifying; departure authorization additionally requires a technical import receipt bound to the exported package and produced only after successful restore validation in the destination Dossier.",
+    "Lifecycle/temp: all application temporaries are confined to Dossier-owned LocalAppData/session directories; generic system-TEMP deletion is forbidden; the 90-second heartbeat watchdog is removed and abnormal window loss is detected by a loopback SSE lease followed by the existing short graceful shutdown.",
+    "Help/UI: body copy increased by one point; family-access, legacy-account, migration and GDPR/cloud security guidance added; provisional-access button typography aligned with standard buttons.",
+    "Public version: user-visible version is 1.0.0 with Beta wording removed; sanitized diagnostics/report-problem remains available.",
+    "Windows Store preparation: GitHub executable updater disabled; writable runtime state moved outside the program directory; optional bundled-rclone path supported. This Win32 package is not itself a Store-signed MSIX.",
+    "Uninstall safety: browser_cleanup.py and uninstall_cleanup.html are removed. The replacement Windows GUI uninstaller identifies owned processes by verified executable path and removes only Dossier-owned local files, tasks, registry keys and shortcuts; it never closes or modifies Chrome, Edge, Brave, Firefox or other third-party applications.",
+    "Family runtime cleanup: legacy email/URI/VBS invitation endpoints and client protocol handling are removed; the 48-hour provisional-access flow remains the supported family activation path.",
+    "Diagnostics naming: public runtime Beta objects/files/endpoints are replaced by neutral diagnostics/report-problem naming without changing frozen clinical parser tokens that are historical internal identifiers.",
+    "Win32 validation update safety: this corrected EXE is explicitly not Store-managed, has no GitHub/executable feed and cannot download/run application updates. Store-managed behavior is enabled only in the later real MSIX package.",
+    "FIX7 stability rollback: remove the failed native embedding wrapper and restore the validated FIX5 Chromium app-style launch path without a separate user-data-dir."
+  ],
+  "authorizedRecovery6Fixes": [
+    "Cloud recovery replays every committed change package from every device up to the confirmed 2026-08-28 18:48 checkpoint and requires the known final committed batch before declaring success.",
+    "Change packages after the checkpoint are quarantined as already processed for this recovered archive and are not applied to the local dossier.",
+    "Snapshot and incremental packages both use staged, hash-verified, 4 MiB chunked local transfer with per-chunk retry.",
+    "Outbound cloud synchronization is disabled for the whole recovery transaction and is enabled only after full restore verification.",
+    "Application window uses an app-owned persistent Chromium profile under LocalAppData\\DossierSanitarioLocale\\BrowserProfile; personal browser profiles, cookies, logins and sessions are never used.",
+    "Normal application shutdown removes only Dossier temp files; the persistent BrowserProfile directory is outside TEMP_ROOT and is preserved."
+  ],
+  "authorizedBlock1P1P5Fixes": [
+    "P1: On a local device not yet marked as cloud-linked, login uses username/email and password only. Once the cloud archive is known/restored, the next login requires the account MFA when enabled.",
+    "P1: Linking an existing archive does not demand TOTP before the archive is known. Creating/disconnecting a cloud archive updates only the local device cloud marker.",
+    "P2: unchanged from Recovery6: Dossier-owned isolated BrowserProfile only.",
+    "P3: unchanged from Recovery6: persistent local BrowserProfile survives normal close/reboot.",
+    "P4: all incoming rows and the security bundle are validated before any IndexedDB store can be cleared; existing rollback/safety-backup behavior remains.",
+    "P5: unchanged from Recovery6: snapshot plus all committed changes through the confirmed 28/08/2026 18:48 checkpoint, no outbound sync during recovery."
+  ],
+  "authorizedBlock4V4AgendaImport": [
+    "Agenda: add Importa prenotazione without changing existing manual appointment entry.",
+    "Accepted sources: PDF, photograph/camera capture, and local scanner capture; camera/scanner multi-page acquisition is merged into one PDF by the existing private local capture pipeline before analysis.",
+    "Privacy: booking recognition uses the existing local OCR service; the booking file is not sent to an external OCR service.",
+    "Extraction: propose profile, visit/exam category, service/title, appointment date/time, healthcare facility and address, while leaving every proposed field editable before save.",
+    "Instructions: when present, retain pavilion, floor, entrance, route, department, clinic, reception and other directions; retain preparation requirements such as fasting, water, medication instructions, prior reports/exams, contrast/allergy instructions and requested early arrival.",
+    "References: retain identifiable booking references when present, including NRE, PIN/Pincode, assigned queue number and other supported booking identifiers.",
+    "Source safety: always add the notice \"Per tutte le informazioni necessarie, consulta il file originale allegato.\" to imported appointment notes.",
+    "Original source: archive the exact original PDF/photo/scanner PDF in the Dossier documents store only when the user confirms Save, and keep it directly openable from the Agenda event.",
+    "Duplicate protection: reuse an already archived exact-source hash and update the already linked booking event rather than creating a second event from the same original source.",
+    "Google Calendar: imported appointments continue through the already approved Agenda save/synchronization path; this V4 change does not create a second OAuth connection or alter existing OAuth credentials/tokens."
+  ],
+  "authorizedBlock4V5AgendaImportCorrections": [
+    "Imported-booking duplicate check runs before automatic Google Calendar synchronization and before any new Google event can be created.",
+    "A likely duplicate is saved provisionally only in the Dossier, marked as pending duplicate resolution, with Windows reminders and Google synchronization suspended until the user decides.",
+    "Duplicate comparison uses same profile/date plus compatible time and strong title similarity, with location/category used as supporting evidence; uncertain cases are not auto-deleted.",
+    "User can keep the previous event, keep the imported event, or explicitly keep both. Keeping one reuses the existing Dossier event id so an already linked Google event is updated at most once instead of create-then-delete.",
+    "Keeping the previous event enriches it with the imported original document and booking instructions/references; keeping the imported event replaces the event content while retaining the previous event identity and Google link.",
+    "Whole-agenda synchronization, manual calendar export/sync and local reminders exclude pending duplicate rows until resolution.",
+    "Deleting a provisional duplicate does not call Google Calendar because it was never synchronized.",
+    "When multiple addresses are present, explicit operational directions such as \"Dove presentarsi\" / \"Presentarsi al seguente indirizzo\" / equivalent appointment-location wording take precedence over healthcare-company or administrative addresses.",
+    "The original booking source remains locally archived and linked to the surviving event when one duplicate is retained."
+  ],
+  "authorizedBlock4V6AgendaDefaultsPerformance": [
+    "Agenda defaults: add one global Avvisi predefiniti Agenda preference with factory default 1 giorno prima and maximum five reminders.",
+    "Agenda defaults apply to newly created manual appointments, imported bookings, health-card expiry reminders and automatic medication-reorder reminders; per-event reminder edits remain possible.",
+    "Medication reorder keeps only its grouping-window preference as medication-specific and labels that scope explicitly.",
+    "Agenda category list adds Telefonare without changing existing categories.",
+    "Appointment save commits the Dossier record first and confirms it immediately; Windows reminder scheduling and Google Calendar synchronization run only after the local commit and do not block the save UI.",
+    "Agenda provider/status checks render from cached state first, then refresh asynchronously; pending duplicate protection from V5 remains before any Google write.",
+    "Full Windows reminder reconciliation is throttled to avoid reprogramming every reminder on every Agenda render.",
+    "Preferences save persists local/profile settings first and confirms immediately; only changed Calendar-dependent follow-up work runs asynchronously afterward.",
+    "OAuth credentials, tokens, scope, quota settings, duplicate rules, booking parser, clinical parser, frozen therapies/AIFA data and installer bootstrap are unchanged."
+  ],
+  "authorizedFamilyPasswordRelayV1": [
+    "Family access: replace manual long activation code plus password with one random 15-character family password containing letters, digits and a special character.",
+    "Family access remains generic to the Dossier: existing members authenticate with their existing account; new members create personal credentials and may then create/link their own first health profile.",
+    "The technical activation package is AES-GCM encrypted client-side and temporarily addressed through the configured Clinica Digitale Family Relay for at most 48 hours; provider credentials, UUIDs and recovery keys are never shown to the family member.",
+    "TOTP setup shows QR plus copyable manual secret, recommends 2FAS while remaining standard-TOTP compatible, and supports atomic authenticator replacement without invalidating the old authenticator before successful verification of the new one.",
+    "All unrelated clinical, cloud transport, Agenda, OAuth, graphs, therapies, diagnoses, installer and UI sectors remain frozen."
+  ],
+  "authorizedWindowsV9VisitPrepSearchSyncReminder": [
+    "V8 remains the frozen rollback baseline and is not overwritten.",
+    "Prepara visita reads existing documents, diagnoses, therapies and calendar data without changing their storage or interpretation engines.",
+    "Direct documents are selected from existing structured links and specialty metadata; proposed documents use deterministic rules and always require user confirmation.",
+    "Manual document picker supports laboratory tests, specialist visits, diagnostic reports, instrumental exams, hospital/ER documents and generic documents.",
+    "Visit requests are user-entered; GP medication reminders use the existing therapy stock calculation and a visit-specific 1-10 day window.",
+    "Visit packet can be printed/saved as PDF and original selected files can be exported in a ZIP without altering the originals.",
+    "Cerca nel Dossier performs deterministic text/metadata search across documents, doctors, diagnoses, therapies and calendar events.",
+    "Remote changes from Android/other devices trigger a Windows sync reminder instead of being applied silently by the automatic freshness check.",
+    "No changes are authorized to OCR/parser, clinical canonicalization, Therapies logic, Diagnoses logic, Agenda logic, graphs, security, launcher or installer binaries."
+  ],
+  "authorizedV13VisualRedesign": [
+    "Sidebar visual hierarchy and grouping only; existing data-view destinations preserved",
+    "Panoramica rebuilt from existing profile, diagnoses, therapies, documents, Agenda and monitoring data",
+    "Internal icons, badges and colored accents added without changing clinical data semantics",
+    "Personalized profile color kept as the single accent source and shown once in sidebar",
+    "Agenda simple/extended presentation toggle added without changing event/reminder/Google Calendar logic",
+    "V11 administrator profile visibility fix and all frozen functional modules preserved"
+  ],
+  "authorizedV13Fix1": [
+    "Adapt startup_check sidebar validation from the legacy flat R26 labels to the V13 macrosection structure without weakening any non-UI startup gate.",
+    "Keep Help only inside the Impostazioni e aiuto macrosection and remove the duplicate legacy Help button above Logout.",
+    "Preserve V11 functional files byte-for-byte outside the explicitly authorized V13 UI files and startup_check.py."
+  ],
+  "v13Fix6UiScope": [
+    "Topbar single-row desktop layout with balanced title/search/action widths",
+    "Agenda two-pane desktop layout, category/search filtering, simple/extended views and month view",
+    "Per-event visible Windows/Google alert status; map preview shown only when a location exists",
+    "Timeline compact rows with date, title and category on one line and actions top-right",
+    "Preferences compact grid including Agenda two-column organization and 4/6-column graph selector",
+    "Backup compact modules with explicit adult migration account requirement",
+    "Consistent cards, buttons, spacing, tables, search bars, Prepare visit, dossier search, help and monitoring presentation"
+  ],
+  "authorizedFIX22Corrected": [
+    "Laboratory parser: ignore non-numeric informational rows that reach numeric normalization without a value; exclude Desiderabile/Valore desiderabile narrative lines; preserve explicit comparison operators such as <3 without inventing a reference interval.",
+    "Permissions UI: Consultazione and Modifica are simultaneous fixed sub-rows; no radio-level selector; account accessLevel is derived from the actual modification/management capabilities selected when saving.",
+    "Cloud media backup: preserve the DICOM/images inclusion choice per archive/device, serialize the choice before synchronization, force a complete encrypted snapshot when media inclusion is enabled and media changed, and remember the last included-media fingerprint to avoid needless full snapshots.",
+    "MEGA/rclone transport, installer/bootstrap, DICOM viewer/import, therapies, diagnoses and other frozen sectors remain unchanged from FIX21."
+  ],
+  "authorizedFIX23": [
+    "Visual redesign only: vivid category palette, centered normalized icons, colored sidebar icons, stronger contrast and card accents based on the approved Windows/mobile visual references. No clinical logic changes are authorized by the visual layer.",
+    "Document association: multiple originals can be grouped under one exam without deleting originals; bulk selection and document-detail association are available; separately imported images with same date/title/type prompt for association instead of silent merging.",
+    "Cloud quota and heavy backup preflight: show provider quota when supported, verify encrypted snapshot size before upload, block when free space is insufficient, never invent quota when provider does not expose it.",
+    "Cloud progress: remote upload reports transferred bytes from rclone statistics; preparation/verification/commit use indeterminate states when not measurable; remove fake fixed 15/88/94 progress.",
+    "Security timeout: active technical operations suspend inactivity locking; after the operation completes the inactivity timer restarts from zero; a failed/completed operation releases the guard.",
+    "FIX22 laboratory parser and cloud media inclusion behavior are preserved; DICOM/MPR, therapies, diagnoses, installer/bootstrap and Android remain frozen."
+  ],
+  "authorizedFIX24": [
+    "Complete the vivid Windows icon audit across every view, card, filter, graph selector, helper panel and Logout; center every symbol and remove remaining pale legacy icon treatments.",
+    "Preserve the selected member/profile color as the operational accent. The security/login overlay keeps its original protected teal palette; vivid category colors must not overwrite profile identity colors.",
+    "Graphs: eGFR remains graph-eligible and normalizes mL/min and mL/min/1.73m² variants into one eGFR series visible in clinical graph selection and PDF graph selection.",
+    "Family Agenda: medication reorder rows that fall within the configured 0-10 day family window are presented as one family event, retaining member ownership for every medication. The redundant separate family-medication panel is removed from Agenda presentation.",
+    "Family Agenda proposals: show the owner using a solid pill in that member profile color; stored suggestions for all agenda-authorized profiles are loaded and shown together, while schedule/dismiss remains permission-gated per profile.",
+    "FIX23 document grouping, cloud quota/progress and idle-operation guard remain intact; FIX22 laboratory parser behavior remains intact; installer/bootstrap, DICOM/MPR engine, therapy calculation, diagnosis logic and Android remain frozen."
+  ],
+  "authorizedFIX26": [
+    "Use one centralized page/category icon system for Windows: square fixed geometry, centered glyph, vivid page-scoped color shared by banner and nested icon surfaces.",
+    "Agenda must expose a canonical calendar icon; Doctors header and inner cards share one teal category color; Document row icon cannot stretch vertically.",
+    "Laboratory graph choices use one category color, never positional column colors.",
+    "Member/profile colors and login palette remain outside the page icon system.",
+    "Prepare visit uses the Agenda-authorized family perimeter for medication reorder candidates and shows a colored owner pill/name for every family medication/request; exports keep the owner visible.",
+    "No parser, cloud/MEGA, DICOM/MPR, authentication, therapy calculation engine or Android change."
+  ],
+  "publicDistribution100Website": {
+    "date": "2026-09-23",
+    "base": "V16 REBASE FIX36 DISTRIBUTION + SHARED AGENDA ALERTS + DASHBOARD",
+    "publicVersion": "1.0.0",
+    "distribution": "direct website download of Win64 EXE; installer/bootstrap preserved unchanged",
+    "updateChannel": "stable website feed at https://dossiersanitario.it/stable.json; package download may resolve to the official GitHub release asset",
+    "licensing": "FREE/MEDIUM/FULL entitlement enforcement not yet enabled in this build; current feature set remains available while licensing infrastructure is designed",
+    "precedence": "This current public-distribution entry supersedes older internal-validation/Store-only updater wording where incompatible, without deleting historical records."
+  },
+  "authorizedLicensePlanAuditR10": [
+    "FREE: administrator account only and exactly one operational local profile; existing hidden data remain stored.",
+    "MEDIUM: all local profiles return for administrator use; secondary account login and family access management stay FULL-only.",
+    "FULL: secondary accounts, family permissions/consents, family association and collaboration enabled.",
+    "Downgrade/upgrade never deletes profiles, accounts, documents, diagnoses, therapies, measurements, graphs or history.",
+    "Server gates mirror UI gates for cloud/Google/doctor MEDIUM and family/account-management FULL; active secondary sessions are rejected below FULL."
+  ],
+  "cumulativeCandidateR12": {
+    "installerAliasesSha256": "aa49170e9068b6007e6ecd5a1dc34b6edfb4f0c50bfd2e48b86103080716a9e9",
+    "installerProgressBar": "gray track painted at initial 0% only; subsequent progress paints extend fill without clearing the track first",
+    "graphSelectedTint": "15% profile accent with darker selected title and secondary text",
+    "timeout60": "preserve approved behavior; auth_service.py frozen from R10",
+    "licenseAuditR10": "preserve FREE/MEDIUM/FULL enforcement and data-preserving downgrade/upgrade",
+    "frozenClinicalModules": "no unrelated clinical/parser/therapy/cloud/TOTP changes"
+  },
+  "authorizedWindowsFamilyReminderAggregationR14": {
+    "date": "2026-10-12",
+    "scope": "Windows local reminders only",
+    "base": "CANDIDATA CHIUSURA WINDOWS PRECHECKED",
+    "changedTrackedFiles": [
+      "payload/python_engine/server.py",
+      "payload/python_engine/startup_check.py",
+      "payload/python_engine/license_manager.py",
+      "payload/index.html",
+      "payload/update_config.json",
+      "payload/diagnostics_config.json",
+      "payload/VERSIONE.txt"
+    ],
+    "behavior": [
+      "one Windows Agenda notification per exact alert minute, with all family members/events listed",
+      "one medication reorder dialog for all medication groups due at the same execution, grouped by member",
+      "multi-profile medication dialog uses explicit Tutto acquistato action; snooze applies to all items shown"
+    ],
+    "untouched": [
+      "clinical data model",
+      "Google Calendar event grouping",
+      "cloud",
+      "licensing rules",
+      "parser",
+      "DICOM/MPR",
+      "PDF",
+      "outer bootstrap",
+      "inner installer binaries"
+    ]
+  },
+  "authorizedFamilyMedicationAgendaParityR15": {
+    "release": "1.0.1",
+    "date": "2026-10-12",
+    "scope": "Correzione chirurgica Agenda/Windows per richieste farmaci familiari; nessun incremento versione.",
+    "changedTrackedFiles": [
+      "payload/js/app.js",
+      "payload/python_engine/server.py",
+      "payload/component_policy.json",
+      "payload/component_manifest.json"
+    ],
+    "behavior": [
+      "Windows usa esattamente gli stessi gruppi di richieste farmaci mostrati dall Agenda, senza ricombinare eventi familiari distinti.",
+      "Scorte orfane di vecchie programmazioni Windows non generano avvisi se non sono referenziate da un evento Agenda corrente.",
+      "Nel dettaglio dell evento famiglia ogni singola richiesta farmaco puo essere segnata Risolto senza chiudere le richieste future o degli altri membri.",
+      "Una richiesta risolta resta esclusa solo per la specifica data di riordino corrente; un nuovo ciclo con nuova data torna automaticamente attivo."
+    ],
+    "untouched": [
+      "versione 1.0.1",
+      "installer/bootstrap",
+      "cloud",
+      "licensing",
+      "parser",
+      "DICOM/MPR",
+      "PDF",
+      "dati non coinvolti"
+    ]
+  }
+}
