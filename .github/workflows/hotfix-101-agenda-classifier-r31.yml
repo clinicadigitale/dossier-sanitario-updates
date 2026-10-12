@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - ".github/workflows/hotfix-101-agenda-classifier-r31.yml"
+      - "windows-release/current-1.0.1/app.js"
+      - "windows-release/current-1.0.1/extractors.js"
 
 permissions:
   contents: write
