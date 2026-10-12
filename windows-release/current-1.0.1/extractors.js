@@ -6097,3 +6097,114 @@ const HealthExtractors = (() => {
   H.repairNarrativeDocumentData=(d={})=>H.canonicalizeClinicalDocument24(d);
   H.SEMANTIC_CLEANUP_VERSION=VERSION;
 })(HealthExtractors);
+
+
+/* BETA 1 R31 - priorita' reale all'intestazione clinica interna.
+   Intervento generale: non riconosce un singolo documento per nome file.
+   Quando il classificatore finale resta generico, usa titolo clinico interno,
+   reparto/specialita' e gerarchia della struttura gia' presenti nel testo OCR. */
+;(function beta1HeaderIdentityR31(H){
+  'use strict'; if(!H)return;
+  const VERSION='beta1-header-identity-r31';
+  const BASE_ANALYZE=H.analyzeText.bind(H);
+  const BASE_CANON=H.canonicalizeClinicalDocument24.bind(H);
+  const collapse=v=>String(v??'').replace(/\u00ad/g,'').replace(/\u00a0/g,' ').replace(/[ \t]+/g,' ').trim();
+  const fold=v=>collapse(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[–—−]/g,'-').toLocaleLowerCase('it-IT');
+  const linesOf=(raw='',limit=100)=>String(raw||'').replace(/\r/g,'\n').split(/\n+/).map(collapse).filter(x=>x&&!/^===\s*(?:PAGINA|PAGE)\s*\d+/i.test(x)).slice(0,limit);
+  const WEAK=/^(?:documento sanitario(?: da classificare)?|documento clinico|altro|referto narrativo|referto|esame)$/i;
+  const ADMIN=/^(?:dipartimento|universit[aà]|azienda|asl\b|ausl\b|a\.??o\.??u\b|aou\b|ospedale|policlinico|presidio|d\.??a\.??i\b|u\.??o\.??c?\b|uoc\b|uos\b|unit[aà]\s+operativa|direttore|responsabile|cognome(?:\s+e\s+nome)?|nome\s*:|data\s+(?:di\s+)?nascita|data\s*:|n[°º]?\s*esame|provenienza|paziente|codice\s+fiscale|referto\s*:|conclusioni?\s*:|il\s+medico|lo\s+specialista|dott\.?|dr\.?|prof\.?)/i;
+  const ACT=/\b(?:visita|ecografia|ecocolordoppler|eco[- ]?color[- ]?doppler|ecodoppler|doppler|elettrocardiogramma|ecg|ecocardiogramma|holter|spirometria|emogasanalisi|polisonnografia|poligrafia|risonanza\s+magnetica|rmn?\b|tac\b|tc\b|tomografia|radiografia|rx\b|mammografia|gastroscopia|colonscopia|endoscopia|audiometria|audiometrico|elettroencefalogramma|eeg\b|elettromiografia|emg\b|densitometria|moc\b|pap\s*test|biopsia|istologico|anatomia\s+patologica|test\s+da\s+sforzo|uroflussometria|angiografia|scintigrafia|pet\b)\b/i;
+  const SPECIALTIES=[
+    ['Neurologia',/neurolog|neuroscienz/i],['Cardiologia',/cardiolog/i],['Pneumologia',/pneumolog/i],
+    ['Gastroenterologia',/gastroenterolog/i],['Epatologia',/epatolog/i],['Endocrinologia',/endocrinolog/i],
+    ['Diabetologia',/diabetolog|malattie\s+metaboliche/i],['Otorinolaringoiatria',/otorinolaring|\borl\b/i],
+    ['Oculistica',/oculist|oftalmolog/i],['Dermatologia',/dermatolog|venereolog/i],['Reumatologia',/reumatolog/i],
+    ['Nefrologia',/nefrolog/i],['Urologia',/\burolog/i],['Ortopedia',/ortoped/i],['Fisiatria',/fisiatr/i],
+    ['Psichiatria',/psichiatr/i],['Ginecologia',/ginecolog/i],['Ematologia',/ematolog/i],['Oncologia',/oncolog/i],
+    ['Angiologia',/angiolog/i],['Chirurgia vascolare',/chirurgia\s+vascolare|chirurg\w*\s+vascolar/i],
+    ['Radiologia',/radiolog|diagnostica\s+per\s+immagini/i],['Anatomia patologica',/anatomia\s+patologic/i]
+  ];
+  function displayHeading(value=''){
+    let v=collapse(value).replace(/[.:;]+$/,'').trim();
+    if(v&&v===v.toLocaleUpperCase('it-IT'))v=v.toLocaleLowerCase('it-IT').replace(/^./,c=>c.toLocaleUpperCase('it-IT'));
+    return v.replace(/\bEcg\b/g,'ECG').replace(/\bEeg\b/g,'EEG').replace(/\bEmg\b/g,'EMG').replace(/\bRmn\b/g,'RMN').replace(/\bRm\b/g,'RM').replace(/\bTac\b/g,'TAC').replace(/\bTc\b/g,'TC').replace(/\bRx\b/g,'RX').replace(/\bMoc\b/g,'MOC').replace(/\bPet\b/g,'PET');
+  }
+  function titleCandidate(raw=''){
+    const lines=linesOf(raw,90);let best=null;
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i],n=fold(line);
+      if(!line||line.length<4||line.length>110||ADMIN.test(line)||!ACT.test(n))continue;
+      if(/[.!?]$/.test(line)&&line.split(/\s+/).length>8)continue;
+      let score=120-Math.min(i,55);
+      if(line===line.toLocaleUpperCase('it-IT'))score+=25;
+      if(i<35)score+=20;
+      if(i>0&&/(?:u\.?\s*o\.?|uoc|reparto|dipartimento|universit|ospedale|aou|asl|ausl)/i.test(lines.slice(Math.max(0,i-5),i).join(' ')))score+=18;
+      if(!best||score>best.score)best={score,line,index:i};
+    }
+    return best;
+  }
+  function specialtyCandidate(raw='',title=''){
+    const lines=linesOf(raw,55);let best=null;
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i],n=fold(line);
+      for(const [label,re] of SPECIALTIES){re.lastIndex=0;if(!re.test(n))continue;let score=120-Math.min(i,40);
+        if(/\b(?:u\.?\s*o\.?\s*c?\.?|uoc|uos|unita\s+operativa|reparto|ambulatorio)\b/i.test(n))score+=90;
+        if(!best||score>best.score)best={label,score,line};}
+    }
+    if(best)return best;
+    const n=fold(title);
+    if(/transcranic|elettroencefal|\beeg\b|elettromiograf|\bemg\b/.test(n))return{label:'Neurologia',score:80,line:title};
+    if(/elettrocard|ecocardi|holter|test da sforzo/.test(n))return{label:'Cardiologia',score:80,line:title};
+    if(/spirometr|emogas|polisonn|poligraf/.test(n))return{label:'Pneumologia',score:80,line:title};
+    return null;
+  }
+  function facilityCandidate(raw=''){
+    const lines=linesOf(raw,45);
+    let institution='',unit='';
+    for(const line of lines){
+      if(!unit&&/\b(?:u\.?\s*o\.?\s*c?\.?|uoc|uos|unita\s+operativa|reparto)\b/i.test(line)&&line.length<=150)unit=collapse(line);
+      if(institution)continue;
+      let m=line.match(/\b(A\.?\s*O\.?\s*U\.?\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý .'’-]{2,80})/i);
+      if(m){institution=collapse(m[1]);continue;}
+      if(/\b(?:ospedale|policlinico|irccs|azienda\s+ospedal|azienda\s+usl|ausl\b|asl\b)\b/i.test(line)&&line.length<=160){institution=collapse(line);continue;}
+      if(/\buniversit[aà]\b/i.test(line)&&line.length<=130)institution=collapse(line);
+    }
+    return [institution,unit].filter((x,i,a)=>x&&a.findIndex(y=>fold(y)===fold(x))===i).join(' · ');
+  }
+  function categoryFor(title=''){
+    const n=fold(title);
+    if(/^visita\b/.test(n))return'Visita specialistica';
+    if(/laboratorio|emocromo|analisi\s+cliniche/.test(n))return'Esami di laboratorio';
+    return'Esame diagnostico';
+  }
+  function isoTitle(label,date=''){
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))){const[y,m,d]=date.split('-');return`${label} del ${d}/${m}/${y}`;}
+    return label;
+  }
+  function classifyHeader(raw='',doc={}){
+    const title=titleCandidate(raw),heading=title?displayHeading(title.line):'',spec=specialtyCandidate(raw,heading),facility=facilityCandidate(raw);
+    return{heading,specialization:spec?.label||'',facility,evidence:[title?.line,spec?.line].filter(Boolean).join(' | '),confidence:title?Math.min(100,title.score):0};
+  }
+  function apply(doc={},raw=''){
+    if(doc.manualIdentityOverride||doc.complexClinicalContainer===true||/cartella\s+clinica/i.test(String(doc.documentKind||doc.category||doc.title||'')))return doc;
+    const h=classifyHeader(raw,doc),kind=collapse(doc.documentKind||doc.category||''),weak=!kind||WEAK.test(kind);
+    if(h.heading&&weak){
+      doc.documentKind=h.heading;doc.category=categoryFor(h.heading);doc.documentMode=doc.documentMode==='lab'?'lab':'narrative';
+      doc.title=isoTitle(h.heading,doc.clinicalDate||'');doc.documentTypeSource='intestazione clinica interna';doc.documentTypeConfidence=Math.max(95,Number(h.confidence||0));
+      doc.documentIdentityEvidence=h.evidence;doc.documentClassifierVersion='document-classifier-v18';doc.documentTypeVersion=VERSION;
+    }
+    if(h.specialization&&(!collapse(doc.specialization||'')||weak)){doc.specialization=h.specialization;doc.department=h.specialization;}
+    const currentFacility=collapse(doc.facility||''),genericFacility=/^(?:dipartimento|universit[aà]|azienda|struttura sanitaria)/i.test(currentFacility);
+    if(h.facility&&(!currentFacility||genericFacility))doc.facility=h.facility;
+    return doc;
+  }
+  H.analyzeText=function(text,profiles=[],activeProfileId=null,pages=[],fileName=''){const doc=BASE_ANALYZE(text,profiles,activeProfileId,pages,fileName);return apply(doc,text);};
+  H.canonicalizeClinicalDocument24=function(input={},options={}){
+    const result=BASE_CANON(input,options)||{document:input,changed:false,validation:{ok:true,violations:[]}};
+    const raw=String(input.ocrIntegralText||input.extractedText||input.structuredText||(input.ocrPageData||[]).map(p=>p?.text||'').join('\n')||'');
+    const doc=apply(result.document||input,raw);return{...result,document:doc,changed:true};
+  };
+  H.repairNarrativeDocumentData=(d={})=>H.canonicalizeClinicalDocument24(d);
+  H.classifyHeaderIdentityR31=classifyHeader;
+  H.HEADER_IDENTITY_VERSION=VERSION;
+})(HealthExtractors);
