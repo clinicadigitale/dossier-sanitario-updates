@@ -6,6 +6,9 @@
   "required": false,
   "releaseNotes": [
     "Clinica Digitale - Dossier Sanitario 1.0.1 per Windows.",
+    "Agenda farmaci famiglia: un solo comando Risolto per chiudere l'intero evento aggregato.",
+    "Agenda famiglia riallineata con le richieste farmaci correnti di tutti i profili visibili.",
+    "Classificazione documenti: il titolo clinico interno e la UO/reparto prevalgono sul fallback generico quando sono chiaramente riconoscibili.",
     "Agenda e avvisi Windows allineati per le richieste farmaci familiari; aggiunto Risolto per la singola richiesta senza chiudere quelle future.",
     "Avvisi Windows familiari raggruppati: gli avvisi previsti nello stesso momento per più membri del Dossier vengono mostrati in un'unica notifica.",
     "Promemoria di riordino farmaci simultanei raccolti in una sola finestra riepilogativa per il Dossier.",
@@ -13,6 +16,6 @@
     "Installer Windows preservato nel flusso approvato; permane il lieve sfarfallio della sola barra di avanzamento già accettato."
   ],
   "downloadUrl": "https://github.com/clinicadigitale/dossier-sanitario-updates/releases/download/v1.0.1/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe",
-  "sha256": "3f01fc693a89e4f1b467cfa0abe95e5b1f8bd6edf773d693bba361f748c44dd0",
-  "size": 138897638
+  "sha256": "6e422566b4343abdbcb5a36fd054247d2725494fcce96b437dbe2858741fe157",
+  "size": 138900295
 }
