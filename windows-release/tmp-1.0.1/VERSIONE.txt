@@ -1,0 +1,221 @@
+CLINICA DIGITALE - DOSSIER SANITARIO 1.0.1
+Build: 2026-10-12
+Versione: 1.0.1
+Motore base: V6.0.4
+Parser clinico: clinical-parser-v15
+Classificatore documentale: document-classifier-v18
+Canone clinico: v6.0.4-canonical-v20-semantic-clean
+Validazione grafici: lab-graph-validation-v27
+Aggiornamenti Windows: disattivati in questa build di verifica; pacchetto Microsoft Store non incluso
+Segnalazioni tecniche: diagnostica sanitizzata su consenso dell'utente
+
+Compatibilità sistema operativo: Windows 10/11 64 bit
+Release interna Windows: V13 FIX17
+Funzioni V9: Prepara visita, Cerca nel Dossier, avviso aggiornamenti da altri dispositivi
+Baseline di rollback: V11 ADMIN PROFILE VISIBILITY FIX PRECHECKED
+
+Funzioni V13: sezione Emergenza ripristinata nella Panoramica con contatto, gruppo sanguigno, allergie, terapie critiche, condizioni/dispositivi e medico di base; redesign grafico trasversale dell’interfaccia Windows; Agenda a due pannelli con Vista semplice/estesa, pillola avvisi Windows/Google su ogni voce, dettagli laterali e mappa quando presente un indirizzo; Cronologia compatta; Preferenze riorganizzate; grafici PDF su 4/6 colonne; Backup compatto; Prepara visita, ricerca, monitoraggio e sezioni cliniche uniformati allo stesso linguaggio grafico; tipografia e pulsanti uniformati.
+Derivazione V13 FIX17: V11 come baseline funzionale e di rollback; modifiche autorizzate limitate a presentazione UI, index.html, css/app.css, js/app.js, VERSIONE.txt, component_policy.json e gate startup già necessario per la sidebar V13. Moduli clinici, sicurezza, cloud, autenticazione, parser, terapie e binari restano congelati.
+
+Funzioni V13 FIX8: correzione layout Preferenze con Avvertenze accanto ad Aspetto generale, Dossier PDF disposto su una riga, Documenti/OCR/Backup spostato nella fascia finale insieme ad Aggiornamenti e ai comandi di salvataggio, badge centrati nelle card di Aggiornamenti e Migrazione profilo adulto, barra superiore ulteriormente bilanciata, affinamento visuale trasversale di Documenti, Terapie, Medici, Diagnosi, Cronologia, Backup e Preferenze per uniformare l’interfaccia moderna sul modello di Panoramica e Agenda.
+
+Correzione V13 FIX8A: ripristinata la funzione di collegamento telefonico usata dai contatti di Emergenza e del medico di base; nessuna modifica ai dati o ai moduli funzionali.
+
+Funzioni V13 FIX9: restyling grafico completo delle sezioni Windows sul modello di Panoramica e Agenda; uniformazione di card, tabelle, filtri, toolbar e aree dati; correzione dei layout delle Preferenze con blocchi bilanciati, allineati e affiancati; fondo pagina Preferenze riorganizzato in tre celle affiancate; altezza uniforme dei moduli Dossier PDF e delle celle Aspetto generale / Avvertenze generali.
+
+Funzioni V13 FIX10: correzione regressione Terapie (helper colgroup ripristinati); restyling strutturale reale esteso a tutte le sezioni Windows tramite banner contestuali, card moderne, toolbar e tabelle a righe-card, griglie e stati grafici coerenti con Panoramica e Agenda; Preferenze rifinite secondo il collaudo: Aspetto/Avvertenze compatti e allineati, avvertenze con comando in testata, Dossier PDF con checkbox in linea e celle uniformi, grafici con card selezionabili moderne, fascia finale a tre celle affiancate e non flottanti, Aggiornamenti con Verifica stato in testata.
+
+Funzioni V13 FIX11: restyling strutturale esteso alle sezioni principali Windows sul linguaggio grafico di Panoramica e Agenda. Terapie, Esenzioni, Documenti, Diagnosi, Medici e Confronta passano da tabelle o liste tradizionali a card, pannelli e griglie moderne con icone, stati e azioni integrate. Cronologia uniformata nel nome a Cronologia clinica. La sezione Emergenza è spostata subito sotto il saluto nella Panoramica e resa ad alta priorità visiva. Grafici clinici riprogettati con selezione iniziale vuota, grafico compatto a sinistra, tutte le rilevazioni a destra, dettaglio del documento sotto il grafico e dicitura Valore rilevato. Grafici del monitoraggio e pagine Peso, Pressione, Glicemia e Saturazione adottano la stessa disposizione con elenco laterale e dettaglio contestuale. Preferenze rifinite nei blocchi affiancati, nel Dossier PDF, nei grafici selezionabili e nella fascia finale a tre celle.
+
+Funzioni V13 FIX12: correzione e consolidamento del restyling Windows. Emergenza ad alta evidenza; Terapie di nuovo in lettura cronologica su riga unica; Esenzioni con codici più evidenti, azioni in testata e layout esteso a incastro; Cronologia clinica ridisegnata; Archivio documenti su righe singole; Cerca nel Dossier ridisegnato senza sovrapposizioni; Panoramica Monitoraggio uniformata alla Panoramica principale; Percorso peso compattato; Grafici monitoraggio tutti in unica pagina; Agenda 60/40 senza duplicazione di promemoria e sincronizzazione nel dettaglio; Prepara visita riorganizzato con ultimi quattro eventi per il medico di base e farmaci governati dalle Preferenze; grafici clinici con referto completo direttamente sotto il grafico; rifiniture globali di allineamento e asse X.
+
+Funzioni V13 FIX13: eliminazione della tripla intestazione nelle sezioni con banner moderno; Cronologia clinica deduplicata; allineamento verticale dei pannelli dei grafici clinici; avanzamento Percorso peso esteso; pagina Grafici monitoraggio ridotta ai soli grafici; margini Agenda corretti; colonne Archivio documenti riequilibrate; Cerca nel Dossier ridisposto su gruppi a piena larghezza con griglia fluida; rifiniture Diagnosi e protezione globale delle etichette asse X.
+
+Funzioni V13 FIX14: eliminazione delle intestazioni duplicate sotto il banner moderno; Diagnosi ridisegnata con archivio a card; Cronologia con deduplicazione effettiva delle anteprime; Agenda con margini interni aumentati; Archivio documenti ulteriormente riequilibrato a favore della colonna Struttura; Cerca nel Dossier esteso alla piena larghezza senza aree vuote laterali.
+
+Funzioni V13 FIX15: comandi operativi inglobati nella testata moderna delle sezioni; Archivio documenti riequilibrato dando maggiore larghezza alla colonna Documento e riducendo Struttura; Cronologia clinica con soppressione delle anteprime OCR che duplicano struttura/reparto; stile colonne a fasce con bordature interne sfumate applicato alle tabelle del Dossier per migliorare la lettura verticale.
+
+Funzioni V13 FIX16: ripristino accesso diretto ai Dati del profilo dal riquadro Profilo attivo; Agenda ridotta a Vista semplice/Calendario con pannello dettagli persistente a destra anche nel calendario e tempo indicativo da casa; indirizzo personale già presente e modificabile nei Dati del profilo; uniformazione globale delle tabelle a righe continue con colonne contigue e separazione tramite sfumature leggere, senza blocchi arrotondati separati.
+
+Correzioni V13 FIX17: Agenda calendario con appuntamenti leggibili su tre righe e stato Windows/Google su riga separata; stima locale dei tempi di percorrenza ricalibrata per tragitti urbani e provinciali senza servizi a pagamento; Archivio documenti riequilibrato con checkbox e icone nuovamente ben visibili, colonne contigue e larghezze più equilibrate; mantenuto lo stile tabellare a riga continua con separazione a sfumatura.
+
+
+V16 REBASE FIX10 CONSOLIDATED - 15/09/2026
+Pillole cliniche uniformate; riferimenti esterni visibili; nuovi frontespizi PDF; Importa DICOM persistente; collegamento DICOM-referto rinforzato; Archivio media gestito con destinazione configurabile e migrazione conservativa.
+
+
+V16 REBASE FIX11 DICOM FLOW - 15/09/2026
+Correzione persistenza DICOM; archivio media dedicato; flusso importazione continuo; conferma associazione; visibilita DICOM in archivio/referto/registro; Aiuto senza doppia intestazione; sidebar coerente; FSE 21 amministrazioni; frontespizi con dossiersanitario.it e QR. Bootstrap esterno ripristinato al ramo FIX9 senza modifica grafica/funzionale.
+
+
+V16 REBASE FIX12 DICOM VIEWER PDF - 15/09/2026
+Correzione chirurgica su FIX11: zoom e trascinamento nel viewer DICOM; indicatori anatomici derivati da Image Orientation Patient; QR www.dossiersanitario.it incorporato direttamente nei frontespizi PDF; linea finale a larghezza piena e testo footer su una sola riga. Nessun intervento su installer, core clinico o settori gia approvati.
+
+
+V16 REBASE FIX13 MEDIA VIEWER MPR - 15/09/2026
+Correzione chirurgica su FIX12: Allega immagini richiede conferma esplicita Salva e non persiste piu automaticamente; zoom immagini associate con area scrollabile completa anche a ingrandimenti elevati e dopo rotazione; viewer DICOM con ricostruzione multiplanare assiale/coronale/sagittale sincronizzata e sezione obliqua regolabile sugli assi X/Y. Nessuna modifica a installer/bootstrap, parser clinico, Terapie, autenticazione, archivio DICOM o altri settori gia approvati.
+
+V16 REBASE FIX14 MPR SERIES SELECT - 15/09/2026
+Correzione chirurgica su FIX13: la vista DICOM a 3 piani non assume piu che tutti i file dello studio appartengano alla stessa serie. Analizza le serie presenti, seleziona automaticamente la serie omogenea ricostruibile piu ampia, ordina le sezioni con geometria DICOM quando disponibile, ignora eventuali file incompatibili isolati e mostra un errore persistente se la ricostruzione non e possibile. Nessuna modifica a installer/bootstrap, importazione/persistenza DICOM, viewer immagini, PDF, parser clinico o altri settori approvati.
+
+
+V16 REBASE FIX25 GLOBAL ICON SYSTEM - 17/09/2026
+Correzione chirurgica esclusivamente grafica sulla FIX24: introdotto un unico sistema globale per geometria e centratura dei box-icona; eliminata la deformazione verticale delle icone nell’Archivio Documenti; rimossa la rotazione cromatica per colonna nei grafici di laboratorio, ora con identita cromatica unica di categoria; mini-icone operative uniformate; colori personali dei membri e schermata login preservati. Nessuna modifica a logica clinica, parser, Agenda, cloud, DICOM/MPR, autenticazione o Android.
+
+
+V16 REBASE FIX26 UNIFIED ICONS + FAMILY VISIT OWNERS - 17/09/2026
+Correzione chirurgica sulla FIX25: sistema icone realmente unico e page-scoped per testata e componenti interni, con geometria quadrata non deformabile, simbolo centrato e colore coerente per categoria/pagina; Agenda dotata di icona; Medici uniformati alla stessa tinta teal; eliminazione definitiva delle icone legacy pastello nelle superfici operative principali e mantenimento del colore personale dei membri/login. Prepara visita usa lo stesso perimetro autorizzato dell’Agenda familiare per le richieste farmaci e mostra una pillola colorata con il nome del titolare su ogni farmaco/richiesta; lo stesso proprietario viene riportato nei riepiloghi e nei PDF di visita. Nessuna modifica a parser clinico, cloud/MEGA, DICOM/MPR, autenticazione, Terapie o Android.
+
+V16 REBASE FIX27 PRESSURE HEART UNIFIED VIEW - 17/09/2026
+Correzione chirurgica sulla FIX26 esclusivamente nella sezione Monitoraggio > Pressione e frequenza: la pagina mostra contemporaneamente il grafico Pressione arteriosa (sistolica/diastolica) e il grafico Frequenza cardiaca; l'elenco laterale mantiene unite nella stessa rilevazione data, pressione e frequenza quando registrate insieme e include anche eventuali rilevazioni di sola frequenza. Nessuna modifica a parser clinico, cloud/MEGA, Agenda, DICOM/MPR, autenticazione, Terapie, sistema icone, installer/bootstrap o Android.
+
+V16 REBASE FIX29 GENERAL MEGA SYNC FINALIZATION - 21/09/2026
+Correzione chirurgica esclusivamente nel settore cloud/sincronizzazione partendo dalla FIX27. La finalizzazione dei caricamenti non dipende piu dal solo moveto del provider: la copia in staging viene verificata, l'esito finale viene controllato anche quando il provider restituisce un errore tardivo e, se la destinazione non risulta verificabile, viene eseguito un fallback dalla copia locale cifrata con nuovi retry e verifica remota prima del commit. La stessa logica e usata dagli upload sincroni e asincroni. Corretto inoltre il percorso di importazione della configurazione cloud tra dispositivi eliminando il richiamo a un helper inesistente. Nessuna modifica a parser clinico, DICOM/MPR, UI, Agenda, Terapie, PDF, Android, installer/bootstrap o dati utente.
+
+V16 REBASE FIX30 CLOUD UPLOAD + FAMILY AGENDA PRINCIPAL - 21/09/2026
+Correzione chirurgica sulla FIX29 nei soli settori cloud/sincronizzazione e Agenda familiare. L’upload cloud usa ora il formato JSON realmente supportato da rclone 1.72.1 tramite --use-json-log, eliminando il parametro non supportato che impediva il trasferimento prima del primo byte. I permessi Agenda familiare vengono inoltre associati a un’identità stabile del membro (profilo collegato, username normalizzato ed e-mail) oltre all’ID locale dell’account; all’accesso amministratore i permessi esistenti vengono arricchiti automaticamente e sincronizzati, così la visibilità resta valida anche quando un account familiare è stato ricreato o riconciliato su un altro PC con un ID locale differente. Nessuna modifica a parser clinico, DICOM/MPR, Terapie, PDF, Monitoraggio, sistema icone, Android o installer/bootstrap.
+
+V16 REBASE FIX31 CLOUD SYNC PERFORMANCE - 21/09/2026
+Ottimizzazione chirurgica del solo percorso cloud Windows sulla FIX30. La sincronizzazione asincrona elimina staging remoto, moveto e verifiche duplicate gia coperte dal protocollo applicativo .commit; i file dati vengono trasferiti direttamente e verificati una sola volta, mentre i marker .commit vengono considerati confermati dal successo di copyto. Le verifiche preventive/posteriori sui batch e snapshot restano solo nei percorsi di recupero dopo un tentativo interrotto. La rotazione dei 5 snapshot viene eseguita in manutenzione differita e non blocca piu il completamento visibile della sincronizzazione. Ridotto inoltre l'intervallo artificiale tra chiamate rclone da 3,1 s a 0,35 s e rimosso il caricamento inutile dell'elenco remoti quando un archivio e gia collegato. Restano invariati Agenda familiare FIX30, parser clinico, DICOM/MPR, Terapie, PDF, Monitoraggio, sistema icone, Android e installer/bootstrap.
+
+V16 REBASE FIX32 FAMILY AGENDA PERMISSIONS - 23/09/2026
+Correzione chirurgica della condivisione Agenda familiare tra amministratore, utenti di secondo livello e profili assistiti. I permessi Agenda non dipendono piu dall'ID locale variabile dell'account: ogni membro viene risolto tramite un principal stabile, preferendo il profilo personale collegato e mantenendo compatibilita con username, e-mail e ID storici. La schermata amministrativa legge, aggiorna e revoca tutte le varianti legacy riferibili allo stesso utente, consolidandole in un solo record stabile. La riparazione dei permessi esistenti viene eseguita soltanto dopo l'attivazione del contesto cloud, cosi ogni correzione entra realmente nella coda di sincronizzazione; viene ripetuta anche dopo il completamento di un nuovo account familiare. Il salvataggio dei permessi avvia inoltre una sincronizzazione cloud in background. Quando un dispositivo familiare rileva modifiche remote, tenta prima la sincronizzazione automatica silenziosa e mostra il promemoria manuale soltanto se il recupero automatico non riesce. La correzione e generale per ruoli e dispositivi e non contiene logica specifica per singoli tester. Nessuna modifica a parser clinico, DICOM/MPR, Terapie, PDF, Monitoraggio, sistema icone, Android o installer/bootstrap.
+
+V16 REBASE FIX33 FAST FAMILY SYNC + MEDICATION ICONS + AGENDA PERMISSIONS - 23/09/2026
+Correzione coordinata sulla FIX32 dei punti gia aperti e autorizzati. La sincronizzazione familiare dei dati diventa incrementale e reattiva: ogni modifica locale sincronizzabile genera un segnale immediato, viene inviata automaticamente dopo un breve debounce e gli altri dispositivi collegati controllano le novita remote a intervalli brevi, con recupero automatico silenzioso. Le copie complete cifrate vengono separate dal percorso di aggiornamento rapido e differite come manutenzione, cosi terapie, Agenda, profili, permessi e altri dati ordinari non restano bloccati da snapshot lunghi. La finestra Agenda familiare chiarisce i permessi con le voci “Visualizza”, “Modifica appuntamenti” e “Modifica farmaci”; il profilo personale resta sempre visibile ma i due permessi di modifica sono separati e revocabili. Se un account non ha un profilo personale collegato, la finestra lo dichiara esplicitamente invece di mostrare un falso “Sempre incluso”. Uniformata inoltre l’identita cromatica dei farmaci: terapia, farmaco, ricetta, prescrizione, riordino e piano terapeutico usano sempre l’icona terapia viola nelle superfici operative interessate, incluse Agenda, dettaglio Agenda, Prepara visita, ricerca, Cronologia, Panoramica ed Emergenza. Nessuna modifica a parser clinico, DICOM/MPR, PDF, 2FA/TOTP, Android o installer/bootstrap.
+
+
+V16 REBASE FIX34 ASSET CACHE INVALIDATION - 23/09/2026
+Correzione chirurgica della regressione di caricamento asset emersa nel test reale della FIX33. Le risorse browser modificate nelle FIX32/FIX33 (app.css, app.js, db.js, security.js e cloud.js) mantenevano URL di cache appartenenti a release precedenti; WebView poteva quindi riutilizzare copie obsolete e mostrare ancora colori precedenti o eseguire logica precedente nonostante i file corretti fossero presenti nel pacchetto. Aggiornati esclusivamente i riferimenti di versione in index.html per forzare il caricamento degli asset effettivi della release corrente. In questo modo diventano realmente attive anche l'identita viola unificata dei farmaci, la sincronizzazione familiare rapida e la UI/semantica dei permessi Agenda gia contenute nella FIX33. Nessuna modifica funzionale aggiuntiva a parser clinico, DICOM/MPR, PDF, 2FA/TOTP, Android o installer/bootstrap.
+
+V16 REBASE FIX35 THERAPY STOCK SUM + MEDICATION ICON CONSISTENCY - 23/09/2026
+Correzione chirurgica sulla FIX34 nei soli settori Terapie/riordino farmaci e identità cromatica delle icone farmaco.
+- Riordino: per lo stesso farmaco e dosaggio la scorta resta condivisa, ma quantità e giorni di assunzione restano specifici della singola somministrazione/riga.
+- Il consumo della confezione viene calcolato sommando automaticamente tutte le somministrazioni attive dello stesso farmaco/dosaggio, giorno per giorno, includendo le variazioni storiche del piano.
+- Esempio di regressione coperto: 28 compresse, 1 alle 07:00 + 1 alle 19:30, confezione iniziata 22/09/2026 -> nuova confezione necessaria 06/10/2026 -> avviso riordino 29/09/2026.
+- UI Terapie: il campo diventa "Unità assunte in questa somministrazione" e non richiede più il totale giornaliero manuale.
+- Icone: farmaci/terapie/ricette/riordini usano in modo vincolante lo stesso viola in Agenda, dettaglio Agenda, Prepara visita, Terapie, Panoramica, Emergenza, Cronologia e Cerca nel Dossier.
+- Cache asset aggiornata a FIX35.
+- Preservate integralmente le correzioni FIX34/FIX33/FIX32, inclusi sync familiare rapido e permessi Agenda.
+- Nessuna modifica a installer/bootstrap, DICOM/MPR, parser clinico, PDF, Monitoraggio, 2FA o Android.
+
+V16 REBASE FIX36 DISTRIBUTION + SHARED AGENDA ALERTS + DASHBOARD - 23/09/2026
+Correzione coordinata sulla FIX35 dei punti gia aperti e autorizzati prima della distribuzione Beta 2.
+- Agenda condivisa: gli eventi di tutti i profili autorizzati generano avvisi Windows anche sui computer degli utenti che possono visualizzarli; il nome del titolare viene mantenuto nell'avviso. I promemoria farmaco condivisi in sola lettura usano un avviso non operativo e non consentono azioni sulla scorta senza il relativo permesso di modifica.
+- Google Calendar: l'Agenda autorizzata viene sincronizzata sul calendario personale del dispositivo collegato; ogni evento condiviso contiene il nome del titolare nel titolo e nei dettagli. Consenso e informativa sono aggiornati per comprendere gli eventi dei profili Agenda autorizzati.
+- Panoramica: Prossimi appuntamenti mostra 4 eventi; Profilo sanitario sintetico raggruppa le terapie identiche per farmaco/dosaggio, conta i farmaci distinti e aggiunge Esenzioni attive come terza riga; la quarta posizione resta volutamente libera.
+- Aggiornamenti: attivato il canale Beta GitHub gia previsto dal progetto. Controllo all'avvio e ogni 15 minuti in background; download automatico solo in condizioni adatte (portatile: Wi-Fi e alimentazione esterna; PC fisso senza batteria: alimentazione permanente/rete disponibile); dopo il download l'installazione richiede conferma esplicita. Il pacchetto viene accettato solo da host autorizzati e con SHA-256 corrispondente al feed.
+- Identita versione distribuzione: 1.0.0 BETA 2 / 1.0.0-beta.2.
+- Preservate integralmente le correzioni FIX35, incluse somma automatica delle somministrazioni per il riordino e icone farmaci viola.
+- Nessuna modifica a installer/bootstrap, DICOM/MPR, parser clinico, PDF, 2FA/TOTP o Android.
+
+PUBLIC DISTRIBUTION 1.0.0 WEBSITE - 23/09/2026
+- Base funzionale: V16 REBASE FIX36, senza ulteriori modifiche alla logica clinica o all'installer/bootstrap.
+- Identita pubblica: Clinica Digitale - Dossier Sanitario 1.0.0. Nessuna dicitura BETA/FIX nel numero versione mostrato all'utente.
+- Aggiornamenti: canale stabile, controllo all'avvio e in background, download automatico secondo i vincoli rete/alimentazione gia implementati e conferma esplicita prima dell'installazione.
+- Feed ufficiale predisposto su https://dossiersanitario.it/stable.json; pacchetti di aggiornamento ammessi solo da host autorizzati e solo con SHA-256 corrispondente al feed.
+- La gestione commerciale FREE/MEDIUM/FULL e il relativo entitlement non sono ancora applicati in questa build: tutte le funzioni correnti restano disponibili come nella base FIX36.
+- Preservati riordino farmaci FIX35, icone farmaci viola, Agenda familiare condivisa, avvisi Windows/Google per i profili autorizzati, Panoramica a 4 eventi e Profilo sanitario sintetico corretto.
+- Nessuna modifica a DICOM/MPR, parser clinico, PDF, 2FA/TOTP o Android.
+
+PUBLIC DISTRIBUTION 1.0.0 CORREZIONE ARTEFATTO + RIORDINO FARMACI - 24/09/2026
+- Versione pubblica invariata: 1.0.0.
+- Corretto il confezionamento dell'EXE: il bootstrap/PE esterno viene preservato integralmente dalla baseline valida, inclusa la risorsa icona ufficiale; nessuna ricostruzione a partire da firme PK interne al PE.
+- Riordino farmaci: le cronologie legacy duplicate, create quando il consumo giornaliero veniva condiviso tra più somministrazioni dello stesso farmaco/dosaggio, non vengono più sommate più volte. Le nuove variazioni di dose sono marcate come cronologia per singola somministrazione e vengono sommate normalmente.
+- Caso di regressione obbligatorio: SYNJARDY 5/1000 mg, 56 compresse, 1 + 1 al giorno, confezione iniziata 06/09/2026 -> nuova scorta 04/10/2026 -> avviso 27/09/2026.
+- La sincronizzazione Agenda rigenera automaticamente l'evento di riordino e i relativi promemoria Windows/Google quando data o contenuto cambiano.
+- Cache asset aggiornata internamente senza modificare il numero versione pubblico.
+- Nessuna modifica a parser clinico, DICOM/MPR, PDF, 2FA/TOTP, Android o logica cloud.
+
+
+CORRETTIVO PUBBLICO 1.0.0 - 24/09/2026 - RIORDINO FARMACI DATI LEGACY
+- Versione pubblica invariata: 1.0.0.
+- Corretto il calcolo di esaurimento/riordino per farmaci con piu somministrazioni quando cronologie create con la vecchia semantica del totale giornaliero erano state duplicate sulle singole righe.
+- Le cronologie legacy duplicate vengono marcate e conteggiate una sola volta; le nuove righe usano esplicitamente la semantica per singola somministrazione v3.
+- Caso regressione obbligatorio: SYNJARDY 56 unita, 1+1 al giorno, inizio confezione 06/09/2026 -> nuova confezione 04/10/2026 -> riordino 27/09/2026.
+- Nessuna modifica a installer/bootstrap, icone, cloud, parser clinico, DICOM/MPR, PDF, 2FA o Android.
+
+CORRETTIVO PUBBLICO 1.0.0 - 24/09/2026 - AGENDA FAMILIARE + GOOGLE CALENDAR UTENTE
+- Versione pubblica invariata: 1.0.0.
+- Il raggruppamento familiare dei riordini farmaci diventa un evento operativo unico: una sola voce Agenda, un solo promemoria Windows e un solo evento Google per ciascun gruppo entro la finestra configurata.
+- Gli eventi farmaco figli gia presenti su Google vengono riconciliati/rimossi quando appartengono a un gruppo familiare; il task farmaci in background non crea piu eventi Google autonomi.
+- Tutti gli utenti presenti e futuri continuano a usare l'unico progetto/client OAuth ufficiale Clinica Digitale Calendar e lo scope calendar.events.owned; token, consenso, stato e calendario associato sono invece separati per account applicativo.
+- L'indirizzo/account Google di riferimento non e piu una preferenza globale del Dossier: ogni utente applicativo associa il proprio Calendar. Due utenti possono associare lo stesso account Google; lo stesso evento aggregato mantiene un'identita stabile per evitare duplicati sul medesimo Calendar.
+- Gli utenti di secondo livello ricevono soltanto gli eventi del proprio profilo e dei profili Agenda esplicitamente autorizzati, secondo i permessi gia definiti.
+- Il promemoria Windows del riordino farmaci viene pianificato sulla data di riordino calcolata, gia fissata 7 giorni prima dell'esaurimento; il rinvio di 12 ore resta invariato.
+- Per il gruppo familiare Google viene usato un solo promemoria dell'evento, evitando la moltiplicazione degli avvisi dei singoli farmaci.
+- Nessuna modifica a installer/bootstrap, parser clinico, DICOM/MPR, PDF, 2FA/TOTP, Android o logica cloud del Dossier.
+
+CORRETTIVO PUBBLICO 1.0.0 - 24/09/2026 - STATO CLINICO DA INTERVALLO SEMANTICO
+- Versione pubblica invariata: 1.0.0.
+- Unificata la valutazione Valore + Intervallo + significato testuale del riferimento: descrizioni del laboratorio come "<20 valori insufficienti" non vengono piu interpretate come normale intervallo numerico.
+- Caso regressione obbligatorio: Vitamina D 25-OH 5,8 / 12,3 / 8,7 ng/mL con riferimento "<20 valori insufficienti" -> stato "insufficiente" in Archivio, Grafici, Confronta, PDF e Versione medico.
+- I riferimenti descrittivi anomali fuori dalla zona esplicitamente descritta non vengono trasformati arbitrariamente in alto/basso: restano "da verificare" salvo altra regola esplicita.
+- La semantica originale del riferimento viene preservata anche quando i grafici convertono unita/intervalli.
+- Nessuna modifica a installer/bootstrap, cloud, Agenda/Google, DICOM/MPR, 2FA/TOTP o Android.
+
+
+CORRETTIVO PUBBLICO 1.0.0 - 27/09/2026 - PERSISTENZA GRAFICI + TERAPIE RIORDINO/RICETTA
+- Versione pubblica invariata: 1.0.0.
+- Grafici clinici: la selezione del parametro, dell'unita e dell'eventuale rilevazione/referto resta stabile durante i refresh in background; il cambio reale di profilo azzera invece correttamente la selezione.
+- Terapie: il modulo Aggiungi terapia usa la stessa impaginazione del modulo Modifica terapia, assunto come riferimento, mantenendo allineamenti e righe coerenti anche quando la decorrenza della modifica non e applicabile.
+- Elenco Terapie: ogni riga mostra in sola lettura se il riordino automatico e attivo, se il farmaco richiede ricetta oppure no e il relativo preavviso.
+- Riordino automatico: separati i concetti di scorta/riordino e richiesta ricetta. I farmaci esistenti restano compatibili e sono considerati con ricetta salvo impostazione esplicita contraria.
+- Preavviso riordino configurabile per singolo farmaco da 1 a 60 giorni, con valore iniziale di 7 giorni; l'impostazione viene condivisa tra le somministrazioni dello stesso farmaco e dosaggio.
+- Farmaci con ricetta: continuano a essere raggruppati nella Richiesta farmaci famiglia secondo la finestra Agenda configurata. Farmaci senza ricetta: non entrano nel gruppo prescrizioni e generano un proprio promemoria di acquisto/riordino con il preavviso specifico.
+- Dopo la conferma Acquistato, anche i cicli successivi conservano il preavviso personalizzato del farmaco.
+- Nessuna modifica a installer/bootstrap, DICOM/MPR, parser clinico, motore stato clinico, cloud/MEGA, architettura OAuth Google, 2FA/TOTP o Android.
+
+CORRETTIVO PUBBLICO 1.0.0 - 28/09/2026 - ENFORCEMENT LICENZE FREE / MEDIUM / FULL
+- Versione pubblica invariata: 1.0.0. Un solo pacchetto Windows serve i tre piani; non esistono EXE separati per FREE, MEDIUM e FULL.
+- Default sicuro FREE. MEDIUM e FULL vengono attivati soltanto da un entitlement firmato RSA dal servizio ufficiale clinica-digitale-licenze; la chiave privata resta esclusivamente lato Cloudflare, mentre l'app incorpora la sola chiave pubblica notarizzata.
+- Identità licenza legata al Dossier/account e derivata dall'identità stabile dell'account amministratore, non dal singolo PC. L'ID Dossier è visibile in Preferenze e può essere copiato per l'assegnazione della licenza.
+- Token premium: firma RSASSA-PKCS1-v1_5/SHA-256 verificata nel motore Python locale; refresh dopo 24 ore; utilizzo offline consentito soltanto entro il notAfter firmato, massimo 14 giorni o la scadenza più breve dell'entitlement. In assenza di token premium valido l'app torna a FREE.
+- FREE: resta utilizzabile per Dossier personale, import singolo, qualità clinica/OCR di base, Documenti, Diagnosi, Terapie manuali, Esenzioni, Agenda locale, dati essenziali, PDF e backup locale.
+- MEDIUM: abilita import multiplo, AIFA/principio attivo automatico, automazioni scorte/riordino, grafici temporali evoluti, Versione medico, Google Calendar automatico e cloud evoluto del singolo utente.
+- FULL: aggiunge gestione Dossier familiare, più profili/account, consensi e permessi, associazione membri, gestione/revoca accessi e funzioni familiari/multidispositivo.
+- I gate premium sono applicati sia nell'interfaccia sia nel motore locale per cloud, Google Calendar, Versione medico e operazioni familiari sensibili; il piano non è più modificabile tramite una preferenza JavaScript.
+- Downgrade: nessun dato clinico o familiare viene cancellato. Le funzioni non comprese vengono bloccate o sospese mantenendo i dati già presenti.
+- Il backend licenze, i prezzi e la logica commerciale restano quelli notarizzati; non vengono introdotte decisioni su abbonamento/acquisto una tantum o upgrade MEDIUM -> FULL.
+- Nessuna modifica a parser clinico, DICOM/MPR, motore PDF, 2FA/TOTP, Android, installer/bootstrap o logica clinica già congelata, salvo i gate di disponibilità commerciale descritti sopra.
+
+Correzione licenze R8 UI: pannello Piano Clinica Digitale nelle Preferenze portato a larghezza piena e disposizione orizzontale responsive; ID Dossier, stato, validità e comandi non vengono più compressi nella prima colonna. Nessuna modifica al License/Entitlement Manager, alla matrice FREE/MEDIUM/FULL o ai moduli clinici.
+
+
+Correzione licenze R9 UI/piano condiviso:
+- Lo stato positivo della licenza usa ora semantica verde; la validità informativa usa uno stile neutro. Il rosso resta riservato a errori o stati non validi.
+- Il pannello chiarisce che il piano appartiene al Dossier ed è condiviso dagli account autorizzati; ruoli e permessi restano indipendenti dal piano commerciale.
+- Nessuna modifica alla matrice FREE/MEDIUM/FULL, alla firma RSA, al backend licenze o ai moduli clinici.
+R10 PRECHECKED - ripristino prenotazioni: classificazione, prestazione, data/ora e ingresso automatico in Agenda da import documento.
+
+R11 PRECHECKED - prenotazioni: ripristino riconoscimento da import Documenti usando OCR integrale e comparsa immediata nell'Archivio anche per import da Agenda. Nessuna modifica a licenze, cloud, Terapie, Diagnosi, PDF, DICOM/MPR o Android.
+
+R12 PRECHECKED - prenotazioni con parser isolato:
+- OCR e parser clinico generale invariati rispetto alla R11.
+- Il riconoscitore specifico prenotazioni interviene solo sui documenti riconosciuti con certezza come prenotazioni e compila prestazione, data, ora, luogo e collegamento Agenda senza sostituire il referto/interpretazione generale.
+- Le prenotazioni importate dall’Agenda conservano nell’Archivio anche l’analisi generale del documento.
+- Un file di prenotazione identico gia archiviato viene riconciliato automaticamente senza richiedere una nuova scelta di interpretazione.
+- Nessuna modifica a licenze, cloud, Terapie, Diagnosi, PDF, DICOM/MPR, 2FA/TOTP, installer/bootstrap o Android.
+
+
+R16 PRECHECKED - PRENOTAZIONI, MAPPA E RIANALISI SICURA ARCHIVIO - 29/09/2026
+- Prenotazioni già archiviate: riallineamento automatico mirato all'avvio usando il testo già disponibile, senza rileggere con Python l'intero archivio e senza modificare documenti non pertinenti.
+- Classificazione prenotazioni: i promemoria riconosciuti vengono riallineati come prenotazioni e collegati all'Agenda; le correzioni manuali dell'utente hanno priorità e non vengono sovrascritte.
+- Agenda/mappa: l'indirizzo usato dalla mappa viene normalizzato eliminando codici struttura come [901]- ed espandendo abbreviazioni ospedaliere; la piantina incorporata usa una query Google Maps dedicata con zoom locale, mentre il file originale conserva i dati sorgente.
+- Rianalisi completa archivio: ogni nuova lettura è trattata come interpretazione candidata. Se perde dati essenziali, testo OCR, dati di prenotazione o una quota rilevante di valori clinici, la scheda corrente resta invariata e la candidata viene conservata nello storico.
+- Le correzioni manuali di identità/tipologia e del testo narrativo sono protette durante le rianalisi e durante le migrazioni automatiche del classificatore.
+- Nessuna modifica a licenze FREE/MEDIUM/FULL, cloud, Terapie, Diagnosi, DICOM/MPR, PDF, 2FA/TOTP, Android o installer/bootstrap.
+
+
+CANDIDATA CORRETTA WINDOWS 1.0.0 - 29/09/2026 - PRECHECKED
+- Installer/bootstrap: ripristinato integralmente il flusso grafico approvato della baseline R15/pubblica, comprese la finestra iniziale di preparazione, il successivo installer elevato e la schermata finale dell'installer con scelta di avvio. I due installer interni restano byte-per-byte invariati.
+- Correttivo chirurgico preparazione installer: il solo thread della finestra Win32 del bootstrap viene vincolato allo stesso thread del sistema operativo per evitare il blocco intermittente della prima finestra. Dimensioni, testi, grafica, barra di avanzamento, estrazione, verifica, UAC/Defender e avvio opzionale dell'installer interno restano quelli della baseline approvata.
+- Prenotazioni: riallineamento automatico mirato dei documenti gia archiviati usando il testo gia presente. Non viene avviato automaticamente un OCR Python dell'intero archivio.
+- Classificazione prenotazioni: titolo, tipologia, data/ora appuntamento, luogo e specializzazione vengono riallineati nel solo perimetro prenotazioni; le correzioni manuali restano prioritarie e protette.
+- Agenda/mappa: la piantina incorporata usa la destinazione normalizzata senza codici amministrativi come [901]-; il testo sorgente resta conservato.
+- Rianalizza archivio completo: funzione manuale. Ogni nuova lettura viene trattata come candidata; se perde dati essenziali, testo OCR, dati di prenotazione o una quota rilevante di valori clinici non sostituisce automaticamente la lettura corrente e viene conservata nello storico.
+- Nessuna modifica ad Android, 2FA/TOTP, DICOM/MPR, PDF, Terapie, Diagnosi, cloud o matrice FREE/MEDIUM/FULL fuori dal perimetro sopra indicato.
+
+
+PUBLIC 1.0.1 - 12/10/2026
+Correzione chirurgica Avvisi Windows famiglia: gli avvisi Agenda che scattano nello stesso minuto vengono riuniti in un'unica notifica Windows con tutti i membri/eventi coinvolti; i riordini farmaci contemporaneamente dovuti per più membri vengono riuniti in un unico avviso familiare. Restano invariati dati clinici, Agenda, Google Calendar, cloud, licenze, parser, DICOM/MPR, PDF e installer/bootstrap.
