@@ -1,0 +1,261 @@
+name: Hotfix 1.0.1 Agenda and document classifier R31
+
+on:
+  push:
+    paths:
+      - ".github/workflows/hotfix-101-agenda-classifier-r31.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download current public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work dist
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python - <<'PY'
+          import hashlib,pathlib
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          if sha!="3f01fc693a89e4f1b467cfa0abe95e5b1f8bd6edf773d693bba361f748c44dd0":
+              raise SystemExit("Unexpected starting SHA256: "+sha)
+          print("Starting public 1.0.1:",sha,p.stat().st_size)
+          PY
+
+      - name: Validate edited sources
+        run: |
+          node --check windows-release/current-1.0.1/app.js
+          node --check windows-release/current-1.0.1/extractors.js
+          python - <<'PY'
+          from pathlib import Path
+          app=Path("windows-release/current-1.0.1/app.js").read_text(encoding="utf-8")
+          required=[
+            "data-family-medication-event-resolve",
+            "resolveFamilyMedicationEvent",
+            "refreshFamilyMedicationAgendaSources",
+            "therapy-reorder-event-resolved-agenda",
+          ]
+          for marker in required:
+              assert marker in app, marker
+          assert "data-family-medication-resolve=" not in app
+          assert "resolveFamilyMedicationRequest(" not in app
+          print("Agenda static checks PASS")
+          PY
+
+      - name: Test family Agenda refreshes all visible profiles
+        run: |
+          node <<'JS'
+          const fs=require('fs');
+          const app=fs.readFileSync('windows-release/current-1.0.1/app.js','utf8');
+          const start=app.indexOf('  let familyMedicationAgendaRefreshBusy=false;');
+          const end=app.indexOf('  async function loadFamilyAgendaContext(){',start);
+          if(start<0||end<0) throw new Error('refresh function not found');
+          const snippet=app.slice(start,end);
+          const called=[];
+          const DossierFeatures={has:(x)=>x==='reorderAutomation'||x==='familyDossier'};
+          const DossierSecurity={canViewAgendaProfile:()=>true,canManageAgendaMedications:()=>true};
+          const DossierDB={
+            getAll:async()=>[{id:'daniele'},{id:'gaia'},{id:'maria'}],
+            byProfile:async()=>[]
+          };
+          const state={activeProfileId:'daniele',calendarEvents:[]};
+          async function syncMedicationReorderAgenda(profile){called.push(profile.id);return false;}
+          eval(snippet);
+          (async()=>{
+            await refreshFamilyMedicationAgendaSources();
+            if(JSON.stringify(called)!==JSON.stringify(['daniele','gaia','maria']))throw new Error('not all visible profiles refreshed: '+JSON.stringify(called));
+            console.log('Family Agenda refresh PASS',called.join(','));
+          })().catch(e=>{console.error(e);process.exit(1);});
+          JS
+
+      - name: Test clinical heading classifier
+        run: |
+          node <<'JS'
+          const fs=require('fs'),vm=require('vm');
+          let src=fs.readFileSync('windows-release/current-1.0.1/extractors.js','utf8');
+          src += '\n;globalThis.__HE=HealthExtractors;';
+          const ctx={console,structuredClone:global.structuredClone,TextEncoder,TextDecoder,setTimeout,clearTimeout,Intl,Date,Math,JSON,RegExp,String,Number,Array,Object,Set,Map};
+          ctx.globalThis=ctx;
+          vm.createContext(ctx);
+          vm.runInContext(src,ctx,{timeout:15000});
+          const sample=[
+            'DIPARTIMENTO di MEDICINA CLINICA e SPERIMENTALE',
+            "UNIVERSITA' di PISA",
+            'D.A.I. NEUROSCIENZE - A.O.U. PISANA',
+            'U.O.C. NEUROLOGIA UNIVERSITARIA',
+            'Direttore Prof. Esempio',
+            '',
+            'DOPPLER TRANSCRANICO',
+            '',
+            'DATA: 6/10/26',
+            'REFerto:',
+            'Arterie cerebrali con normali valori di velocità.',
+            'CONCLUSIONI:',
+            'Reperto ai limiti della norma.'
+          ].join('\n');
+          const h=ctx.__HE.classifyHeaderIdentityR31(sample,{});
+          if(h.heading!=='Doppler transcranico')throw new Error('wrong heading '+JSON.stringify(h));
+          if(h.specialization!=='Neurologia')throw new Error('wrong specialization '+JSON.stringify(h));
+          if(!/A\.?\s*O\.?\s*U\.?/i.test(h.facility)||!/NEUROLOGIA/i.test(h.facility))throw new Error('wrong facility '+JSON.stringify(h));
+          console.log('Header classifier PASS',h);
+          JS
+
+      - name: Build surgical replacement without changing version
+        run: |
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          src=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          app=pathlib.Path("windows-release/current-1.0.1/app.js").read_bytes()
+          ext=pathlib.Path("windows-release/current-1.0.1/extractors.js").read_bytes()
+          with zipfile.ZipFile(src) as z:
+              manifest=json.loads(z.read("payload/component_manifest.json"))
+              policy=json.loads(z.read("payload/component_policy.json"))
+              first=min(i.header_offset for i in z.infolist())
+          prefix=src.read_bytes()[:first]
+          if hashlib.sha256(prefix).hexdigest()!="d5524c25c3b747080b9478fcdef5fb224dd0336224bd12f5346df7fd31d1c0ff":
+              raise SystemExit("Installer/bootstrap prefix changed unexpectedly")
+
+          replacements={"payload/js/app.js":app,"payload/js/extractors.js":ext}
+          for ent in manifest.get("files",[]):
+              if ent.get("path") in replacements:
+                  data=replacements[ent["path"]]
+                  ent["sha256"]=hashlib.sha256(data).hexdigest()
+                  ent["size"]=len(data)
+          for comp_name,comp in manifest.get("components",{}).items():
+              rows=[e for e in manifest.get("files",[]) if e.get("component")==comp_name]
+              h=hashlib.sha256();total=0
+              for e in sorted(rows,key=lambda x:x["path"]):
+                  total+=int(e["size"])
+                  h.update(f'{e["path"]}\0{e["sha256"]}\0{e["size"]}\n'.encode())
+              comp["sha256"]=h.hexdigest();comp["fileCount"]=len(rows);comp["bytes"]=total
+
+          policy["authorizedAgendaClassifierR31"]={
+            "release":"1.0.1","date":"2026-10-12",
+            "scope":"Correzione chirurgica Agenda farmaci famiglia e classificazione documentale da intestazione; versione invariata.",
+            "agenda":[
+              "La vista famiglia riallinea le richieste farmaci di tutti i profili visibili prima di costruire gli eventi aggregati.",
+              "Un evento famiglia si risolve con un solo comando; tutte le richieste contenute vengono chiuse insieme.",
+              "Gli eventi successivi non vengono chiusi.",
+              "Windows e Agenda continuano a usare lo stesso evento aggregato."
+            ],
+            "classification":[
+              "Se il classificatore resta generico ma il documento contiene un titolo clinico interno forte, il titolo interno prevale.",
+              "Reparto/UO nell'intestazione determina la specializzazione quando disponibile.",
+              "La struttura privilegia ente sanitario e UO rispetto a una intestazione generica di dipartimento.",
+              "Nome file resta solo conferma secondaria; nessun OCR aggiuntivo."
+            ],
+            "untouched":["versione 1.0.1","installer/bootstrap","cloud","licensing","backup","PDF","grafici","parser OCR"]
+          }
+          replacements["payload/component_policy.json"]=(json.dumps(policy,ensure_ascii=False,indent=2)+"\n").encode()
+          replacements["payload/component_manifest.json"]=(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n").encode()
+
+          out=pathlib.Path("dist/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          out.write_bytes(prefix)
+          with zipfile.ZipFile(src) as zin,zipfile.ZipFile(out,"a",allowZip64=True) as zout:
+              for info in zin.infolist():
+                  data=replacements.get(info.filename,zin.read(info.filename))
+                  zi=zipfile.ZipInfo(info.filename,date_time=info.date_time)
+                  zi.compress_type=info.compress_type;zi.comment=info.comment;zi.extra=info.extra
+                  zi.internal_attr=info.internal_attr;zi.external_attr=info.external_attr
+                  zi.create_system=info.create_system;zi.create_version=info.create_version
+                  zi.extract_version=info.extract_version;zi.flag_bits=info.flag_bits
+                  zout.writestr(zi,data,compress_type=info.compress_type,compresslevel=9 if info.compress_type==zipfile.ZIP_DEFLATED else None)
+
+          with zipfile.ZipFile(out) as z:
+              bad=z.testzip()
+              if bad: raise SystemExit("Archive integrity error: "+bad)
+              saved=json.loads(z.read("payload/component_manifest.json"))
+              if str(saved.get("release"))!="1.0.1": raise SystemExit("Version changed")
+              if z.read("payload/js/app.js")!=app: raise SystemExit("app.js mismatch")
+              if z.read("payload/js/extractors.js")!=ext: raise SystemExit("extractors.js mismatch")
+
+          sha=hashlib.sha256(out.read_bytes()).hexdigest()
+          pathlib.Path("work/new-sha.txt").write_text(sha)
+          pathlib.Path("work/new-size.txt").write_text(str(out.stat().st_size))
+          print("Built",sha,out.stat().st_size)
+          PY
+
+      - name: Overwrite public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v1.0.1 "dist/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" --clobber
+          cat > work/release-notes.txt <<'EOF'
+          Aggiornamento Windows 1.0.1, sovrascritto senza cambio versione.
+
+          Agenda farmaci famiglia:
+          - le richieste dei profili familiari vengono riallineate prima di costruire l'evento aggregato;
+          - l'evento aggregato si chiude con un solo comando "Risolto", senza confermare farmaco per farmaco;
+          - gli eventi successivi restano invariati;
+          - Agenda e avvisi Windows continuano a usare lo stesso raggruppamento.
+
+          Classificazione documenti:
+          - ripristinata la priorità del titolo clinico interno quando il risultato automatico rimane generico;
+          - reparto/UO dell'intestazione viene usato per la specializzazione;
+          - struttura sanitaria ricostruita privilegiando ente sanitario e UO;
+          - nessun OCR aggiuntivo e nessuna modifica alle altre funzioni approvate.
+          EOF
+          gh release edit v1.0.1 --notes-file work/release-notes.txt
+
+      - name: Update stable metadata
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("stable.json")
+          d=json.loads(p.read_text(encoding="utf-8"))
+          assert d["version"]=="1.0.1"
+          d["sha256"]=pathlib.Path("work/new-sha.txt").read_text().strip()
+          d["size"]=int(pathlib.Path("work/new-size.txt").read_text().strip())
+          notes=list(d.get("releaseNotes") or [])
+          new=[
+            "Agenda farmaci famiglia: un solo comando Risolto per chiudere l'intero evento aggregato.",
+            "Agenda famiglia riallineata con le richieste farmaci correnti di tutti i profili visibili.",
+            "Classificazione documenti: il titolo clinico interno e la UO/reparto prevalgono sul fallback generico quando sono chiaramente riconoscibili."
+          ]
+          for x in reversed(new):
+              if x not in notes: notes.insert(1,x)
+          d["releaseNotes"]=notes
+          p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stable.json
+          git commit -m "Overwrite Windows 1.0.1 with Agenda and classifier R31 fixes"
+          git push
+
+      - name: Verify public asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -f work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          stable=json.loads(pathlib.Path("stable.json").read_text())
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          assert sha==stable["sha256"],(sha,stable["sha256"])
+          assert p.stat().st_size==stable["size"],(p.stat().st_size,stable["size"])
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              app=z.read("payload/js/app.js").decode("utf-8")
+              ext=z.read("payload/js/extractors.js").decode("utf-8")
+              assert "data-family-medication-event-resolve" in app
+              assert "beta1HeaderIdentityR31" in ext
+          print("PUBLIC VERIFIED",sha,p.stat().st_size)
+          PY
+
+      - name: Export verified executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClinicaDigitale_DossierSanitario_1.0.1_WIN64_AGENDA_CLASSIFIER_FIXED
+          path: work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe
+          retention-days: 1
+          compression-level: 0
