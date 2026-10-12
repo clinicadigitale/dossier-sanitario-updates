@@ -6160,14 +6160,19 @@ const HealthExtractors = (() => {
   }
   function facilityCandidate(raw=''){
     const lines=linesOf(raw,45);
-    let institution='',unit='';
-    for(const line of lines){
-      if(!unit&&/\b(?:u\.?\s*o\.?\s*c?\.?|uoc|uos|unita\s+operativa|reparto)\b/i.test(line)&&line.length<=150)unit=collapse(line);
-      if(institution)continue;
-      let m=line.match(/\b(A\.?\s*O\.?\s*U\.?\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý .'’-]{2,80})/i);
-      if(m){institution=collapse(m[1]);continue;}
-      if(/\b(?:ospedale|policlinico|irccs|azienda\s+ospedal|azienda\s+usl|ausl\b|asl\b)\b/i.test(line)&&line.length<=160){institution=collapse(line);continue;}
-      if(/\buniversit[aà]\b/i.test(line)&&line.length<=130)institution=collapse(line);
+    let institution='',institutionScore=-1,unit='',unitScore=-1;
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i],n=fold(line);
+      if(/\b(?:u\.?\s*o\.?\s*c?\.?|uoc|uos|unita\s+operativa|reparto)\b/i.test(n)&&line.length<=150){
+        const score=200-Math.min(i,40);
+        if(score>unitScore){unit=collapse(line);unitScore=score;}
+      }
+      let candidate='',score=-1;
+      const m=line.match(/\b(A\.?\s*O\.?\s*U\.?\s+[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý .'’-]{2,80})/i);
+      if(m){candidate=collapse(m[1]);score=320-Math.min(i,40);}
+      else if(/\b(?:ospedale|policlinico|irccs|azienda\s+ospedal|azienda\s+usl|ausl\b|asl\b)\b/i.test(n)&&line.length<=160){candidate=collapse(line);score=280-Math.min(i,40);}
+      else if(/\buniversit[aà]\b/i.test(n)&&line.length<=130){candidate=collapse(line);score=180-Math.min(i,40);}
+      if(candidate&&score>institutionScore){institution=candidate;institutionScore=score;}
     }
     return [institution,unit].filter((x,i,a)=>x&&a.findIndex(y=>fold(y)===fold(x))===i).join(' · ');
   }
