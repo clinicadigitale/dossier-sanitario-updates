@@ -1,0 +1,45 @@
+name: Extract current Windows 1.0.1 sources
+
+on:
+  push:
+    paths:
+      - ".github/workflows/extract-current-101.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download verified current 1.0.1
+        run: |
+          curl -fL --retry 3 -o current.exe "https://github.com/clinicadigitale/dossier-sanitario-updates/releases/download/v1.0.1/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe"
+          echo "0058c0e0dcdd6ee0af77c78df6c596f607881e6c8cdfc21be024a09dd7b4f0b9  current.exe" | sha256sum -c -
+      - name: Extract source files
+        run: |
+          python - <<'PY'
+          import pathlib, zipfile
+          out=pathlib.Path("windows-release/tmp-1.0.1")
+          out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile("current.exe") as z:
+              for src,dst in [
+                  ("payload/js/app.js","app.js"),
+                  ("payload/js/calendar.js","calendar.js"),
+                  ("payload/python_engine/server.py","server.py"),
+                  ("payload/component_manifest.json","component_manifest.json"),
+                  ("payload/component_policy.json","component_policy.json"),
+                  ("payload/VERSIONE.txt","VERSIONE.txt"),
+              ]:
+                  (out/dst).write_bytes(z.read(src))
+          PY
+      - name: Commit extracted sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add windows-release/tmp-1.0.1
+          git commit -m "Stage current Windows 1.0.1 sources for surgical hotfix"
+          git push
