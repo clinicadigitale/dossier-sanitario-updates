@@ -1,0 +1,49 @@
+{
+  "_archive": {
+    "entries": 2159,
+    "prefix_sha256": "d5524c25c3b747080b9478fcdef5fb224dd0336224bd12f5346df7fd31d1c0ff",
+    "sha256": "be964d578c9d21ad5d2befb6305576e34a79b88bb532ea545945ef89b8903694",
+    "size": 139442462,
+    "zip_offset": 2023424
+  },
+  "payload/VERSIONE.txt": {
+    "sha256": "e3b50858b8293d75fc12ee86cbdf4c7b2c54248a0e198bb10d1655276ace6369",
+    "size": 35247
+  },
+  "payload/component_manifest.json": {
+    "sha256": "486159090e7ee882f9c193e1c00ec0b1fbfaf29fa4e5b5dff8b93caced6b55c2",
+    "size": 569289
+  },
+  "payload/component_policy.json": {
+    "sha256": "d8aff283ae6c51a8ff2da9464d48c9a479e231b2c485e3355ed0a14c02f82b61",
+    "size": 39049
+  },
+  "payload/diagnostics_config.json": {
+    "sha256": "c39f323b75f4b2cc19766821bced9bbb377dcb259bbd13142770167e395a6f19",
+    "size": 379
+  },
+  "payload/index.html": {
+    "sha256": "fb6635c696c8301cc90fd856a5e96acacec5f712517bd0219a886d8f9b2b1e52",
+    "size": 11453
+  },
+  "payload/js/app.js": {
+    "sha256": "50da88e663955a7581e4379031a5491271b002409dc06fb935c0b6a995c7bc86",
+    "size": 906664
+  },
+  "payload/python_engine/license_manager.py": {
+    "sha256": "7eb2309e0bba42a2dca3d51e3f0618428d27387edf2656e4e2bcffea5ec71e31",
+    "size": 14660
+  },
+  "payload/python_engine/server.py": {
+    "sha256": "f62b0b48b948a43662133462c076c8b79d2be0a776d1584e96e819e13c745307",
+    "size": 294018
+  },
+  "payload/python_engine/startup_check.py": {
+    "sha256": "632473fb36407f2db43c8eb731e437ca356143077e9877c57b07ddff506c13a8",
+    "size": 69230
+  },
+  "payload/update_config.json": {
+    "sha256": "2245322d1105ebb395895d7885069cffdab69b91ffca18da5451270d0520d06c",
+    "size": 477
+  }
+}
