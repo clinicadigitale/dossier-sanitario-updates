@@ -1,0 +1,51 @@
+name: Extract current Windows 1.0.1 sources
+
+on:
+  push:
+    paths:
+      - ".github/workflows/extract-current-101-sources.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and extract current public 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf work windows-release/current-1.0.1
+          mkdir -p work windows-release/current-1.0.1
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python - <<'PY'
+          import hashlib, pathlib, zipfile
+          p=pathlib.Path("work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe")
+          sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          if sha!="3f01fc693a89e4f1b467cfa0abe95e5b1f8bd6edf773d693bba361f748c44dd0":
+              raise SystemExit("Unexpected SHA "+sha)
+          names=[
+            "payload/js/app.js",
+            "payload/js/extractors.js",
+            "payload/python_engine/server.py",
+            "payload/component_manifest.json",
+            "payload/component_policy.json",
+            "payload/tools/verifica_classificatore_fix23.py",
+            "payload/VERSIONE.txt",
+          ]
+          out=pathlib.Path("windows-release/current-1.0.1")
+          with zipfile.ZipFile(p) as z:
+              for n in names:
+                  data=z.read(n)
+                  (out/pathlib.Path(n).name).write_bytes(data)
+          print("extracted",sha)
+          PY
+      - name: Commit extracted sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add windows-release/current-1.0.1
+          git commit -m "Extract current public Windows 1.0.1 sources for surgical fixes"
+          git push
