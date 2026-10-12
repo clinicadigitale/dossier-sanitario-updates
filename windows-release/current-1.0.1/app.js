@@ -2351,6 +2351,26 @@ const App = (() => {
   function calendarCanManageProfile(profileId='',kind='appointments'){if(!globalThis.DossierSecurity)return String(profileId||'')===String(state.activeProfileId||'')&&canEditActive();const profile=calendarProfileMeta(profileId);if(!profile)return false;return kind==='medications'?DossierSecurity.canManageAgendaMedications(profile):DossierSecurity.canManageAgendaAppointments(profile);}
   function calendarCanManageEvent(row={}){return calendarCanManageProfile(row.profileId||state.activeProfileId,calendarIsMedicationRequest(row)?'medications':'appointments');}
   function calendarVisibleEventById(id=''){return state.calendarFamilyEvents.find(x=>String(x.id)===String(id))||state.calendarEvents.find(x=>String(x.id)===String(id))||null;}
+  let familyMedicationAgendaRefreshBusy=false;
+  async function refreshFamilyMedicationAgendaSources(){
+    if(familyMedicationAgendaRefreshBusy||!globalThis.DossierFeatures?.has?.('reorderAutomation'))return false;
+    familyMedicationAgendaRefreshBusy=true;
+    try{
+      const allProfiles=await DossierDB.getAll('profiles');
+      const familyAgendaLicensed=Boolean(globalThis.DossierFeatures?.has?.('familyDossier'));
+      let visible=familyAgendaLicensed
+        ?(globalThis.DossierSecurity?allProfiles.filter(p=>DossierSecurity.canViewAgendaProfile(p)):allProfiles.filter(p=>String(p.id)===String(state.activeProfileId)))
+        :allProfiles.filter(p=>String(p.id)===String(state.activeProfileId));
+      let changed=false;
+      for(const profile of visible){
+        if(globalThis.DossierSecurity&&!DossierSecurity.canManageAgendaMedications(profile))continue;
+        try{if(await syncMedicationReorderAgenda(profile))changed=true;}catch(error){console.warn('Agenda famiglia: aggiornamento richieste farmaci non completato',profile?.id,error);}
+      }
+      if(changed&&state.activeProfileId)state.calendarEvents=await DossierDB.byProfile('calendarEvents',state.activeProfileId);
+      return changed;
+    }finally{familyMedicationAgendaRefreshBusy=false;}
+  }
+
   async function loadFamilyAgendaContext(){
     const allProfiles=await DossierDB.getAll('profiles');
     const familyAgendaLicensed=Boolean(globalThis.DossierFeatures?.has?.('familyDossier'));
@@ -2906,7 +2926,11 @@ const App = (() => {
   }
   function calendarDetailsHtml(row){
     if(!row)return `<aside class="agenda-detail-panel empty"><div class="agenda-detail-empty">Seleziona una voce per visualizzare i dettagli.</div></aside>`;
-    if(row.familyMedicationGroup){const sync=calendarSyncPresentation(row);const blocks=(row.familyMedicationItems||[]).map(member=>{const canResolve=calendarCanManageProfile(member.profileId,'medications');return `<section class="family-medication-member"><div>${calendarProfilePill(member.profileId)}</div><ul>${(member.items||[]).map(x=>`<li><strong>${esc(x.medication||'Farmaco')}</strong>${x.reorderDate?`<span>Richiesta prevista ${formatDate(x.reorderDate)}</span>`:''}<button type="button" class="btn btn-light btn-small" data-family-medication-resolve="1" data-profile-id="${esc(member.profileId)}" data-stock-key="${esc(x.stockKey||'')}" data-reorder-date="${esc(x.reorderDate||member.startDate||'')}" data-medication="${esc(x.medication||'Farmaco')}" ${canResolve&&x.stockKey?'':'disabled'}>Risolto</button></li>`).join('')}</ul></section>`;}).join('');return `<aside class="agenda-detail-panel family-medication-detail"><div class="agenda-detail-head"><div><span class="agenda-detail-icon violet medication-semantic-icon">${uiIconSvg('therapy')}</span><div><h3>Richiesta farmaci famiglia</h3><span class="badge">Evento aggregato</span></div></div><span class="badge agenda-sync-pill ${sync.cls}">${esc(sync.label)}</span></div><div class="agenda-detail-list"><div><span>Data</span><strong>${formatDate(row.startDate)}</strong></div><div><span>Regola</span><strong>Un solo evento per le richieste comprese nella finestra familiare</strong></div></div><div class="family-medication-members">${blocks}</div><div class="notice">Ogni farmaco mantiene il proprio titolare. Usa “Risolto” solo per la singola richiesta effettivamente gestita: le altre, comprese quelle future, restano attive.</div></aside>`;}
+    if(row.familyMedicationGroup){
+      const sync=calendarSyncPresentation(row),canResolve=calendarCanManageFamilyMedication(row);
+      const blocks=(row.familyMedicationItems||[]).map(member=>`<section class="family-medication-member"><div>${calendarProfilePill(member.profileId)}</div><ul>${(member.items||[]).map(x=>`<li><strong>${esc(x.medication||'Farmaco')}</strong>${x.reorderDate?`<span>Richiesta prevista ${formatDate(x.reorderDate)}</span>`:''}</li>`).join('')}</ul></section>`).join('');
+      return `<aside class="agenda-detail-panel family-medication-detail"><div class="agenda-detail-head"><div><span class="agenda-detail-icon violet medication-semantic-icon">${uiIconSvg('therapy')}</span><div><h3>Richiesta farmaci famiglia</h3><span class="badge">Evento aggregato</span></div></div><span class="badge agenda-sync-pill ${sync.cls}">${esc(sync.label)}</span></div><div class="agenda-detail-actions"><button type="button" class="btn btn-primary btn-small" data-family-medication-event-resolve="${esc(row.id)}" ${canResolve?'':'disabled'}>Risolto</button></div><div class="agenda-detail-list"><div><span>Data</span><strong>${formatDate(row.startDate)}</strong></div><div><span>Regola</span><strong>Un solo evento per le richieste comprese nella finestra familiare</strong></div></div><div class="family-medication-members">${blocks}</div><div class="notice">“Risolto” chiude l'intero evento: tutte le richieste elencate vengono considerate gestite insieme. Gli eventi successivi restano invariati.</div></aside>`;
+    }
     const sync=calendarSyncPresentation(row),visual=calendarEventVisual(row),googleState=state.googleCalendarEventStatus?.[row.id]||{};const location=String(row.location||'').trim();const mapEligible=location&&!/^(online|web|telefono|telefonata)$/i.test(location);const mapLocation=calendarMapQueryLocation(location);const mapsQuery=encodeURIComponent(mapLocation);const clinicalSourceAllowed=!globalThis.DossierSecurity||DossierSecurity.canAccessProfile(row.profileId||state.activeProfileId);const sourceDoc=clinicalSourceAllowed&&String(row.profileId||'')===String(state.activeProfileId)&&row.sourceDocumentId?state.documents.find(d=>d.id===row.sourceDocumentId):null;const travel=mapEligible?approximateTravelFromHome(location):null;const canManage=calendarCanManageEvent(row);const personalCalendar=String(row.profileId||'')===String(state.activeProfileId);
     return `<aside class="agenda-detail-panel"><div class="agenda-detail-head"><div><span class="agenda-detail-icon ${visual.tone} ${visual.icon==='therapy'?'medication-semantic-icon':''}">${uiIconSvg(visual.icon)}</span><div><h3>${esc(row.title||'Appuntamento')}</h3><span class="badge">${esc(row.category||'Altro')}</span></div></div><button class="btn btn-primary btn-small" data-calendar-edit="${row.id}" ${canManage?'':'disabled'}>Modifica</button></div><div class="agenda-detail-actions"><button class="btn btn-light btn-small" data-calendar-complete="${row.id}" ${canManage&&!row.pendingDuplicateResolution?'':'disabled'}>Completa</button><button class="btn btn-danger btn-small" data-calendar-delete="${row.id}" ${canManage?'':'disabled'}>Elimina</button></div><div class="agenda-detail-list"><div><span>Profilo</span><strong style="color:${calendarProfileColor(row.profileId)}">${esc(calendarProfileName(row.profileId))}</strong></div><div><span>Data e ora</span><strong>${formatDate(row.startDate)}${row.allDay?' · Tutto il giorno':` · ${esc(row.startTime||'')}`}</strong></div>${row.doctorName?`<div><span>Medico</span><strong>${esc(row.doctorName)}</strong></div>`:''}${location?`<div><span>Struttura / indirizzo</span><strong>${esc(location)}</strong></div>`:''}${row.notes?`<div><span>Note</span><strong class="agenda-detail-note">${multilineHtml(row.notes)}</strong></div>`:''}</div>${travel?`<div class="agenda-travel-estimate"><div><span>Tempo indicativo da casa</span><strong>circa ${travel.minutes} min</strong></div><small>${esc(travel.label)} · partenza: ${esc(travel.home)}</small></div>`:''}${mapEligible?`<div class="agenda-map-card"><iframe title="Mappa ${esc(location)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?output=embed&q=${mapsQuery}&z=16"></iframe><div class="agenda-map-footer"><span>${esc(mapLocation)}</span><a class="btn btn-light btn-small" href="https://www.google.com/maps/search/?api=1&query=${mapsQuery}" target="_blank" rel="noopener noreferrer">Apri mappa</a></div></div>`:''}<div class="agenda-detail-links">${row.pendingDuplicateResolution&&personalCalendar?`<button class="btn btn-primary" data-calendar-resolve-duplicate="${row.id}">Risolvi possibile duplicato</button>`:`<button class="btn btn-light" data-calendar-export="${row.id}">${sync.googleSynced?'Google Calendar ✓':'Aggiungi al calendario'}</button>`}${sourceDoc?`<button class="btn btn-light" data-action="view-doc" data-id="${sourceDoc.id}">Apri file originale</button>`:''}</div>${googleState.lastError?`<div class="notice warning compact-notice">${esc(googleState.lastError)}</div>`:''}</aside>`;
   }
@@ -2915,24 +2939,38 @@ const App = (() => {
     const groups=[];for(const row of rows){let g=groups.at(-1);if(!g||g.date!==row.startDate){g={date:row.startDate,rows:[]};groups.push(g);}g.rows.push(row);}
     return groups.map(g=>`<section class="agenda-day-group"><div class="agenda-day-title"><strong>${esc(new Intl.DateTimeFormat('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(`${g.date}T12:00:00`)))}</strong><span>${g.rows.length} ${g.rows.length===1?'voce':'voci'}</span></div>${g.rows.map(calendarEventRow).join('')}</section>`).join('');
   }
-  async function resolveFamilyMedicationRequest(profileId='',stockKey='',reorderDate='',medication='Farmaco') {
-    const pid=String(profileId||''),key=String(stockKey||''),date=String(reorderDate||'').slice(0,10);
-    if(!pid||!key||!/^\d{4}-\d{2}-\d{2}$/.test(date))return;
-    if(!calendarCanManageProfile(pid,'medications')){toast('Non hai i permessi per modificare le richieste farmaci di questo profilo');return;}
-    if(!confirm(`Segnare come risolta la richiesta per ${medication||'questo farmaco'} del ${formatDate(date)}?`))return;
-    const therapies=await DossierDB.byProfile('therapies',pid);
-    const matched=(therapies||[]).filter(row=>medicationStockKey(row)===key);
-    if(!matched.length){toast('Richiesta farmaco non trovata');return;}
-    const now=new Date().toISOString();
-    for(const row of matched){await DossierDB.put('therapies',{...row,reorderResolvedDate:date,reorderResolvedAt:now,updatedAt:now},{details:{event:'therapy-reorder-resolved-agenda',reorderDate:date}});}
-    const profile=calendarProfileMeta(pid)||state.profiles.find(p=>String(p.id)===pid)||{id:pid};
-    await syncMedicationReorderAgenda(profile);
-    if(String(state.activeProfileId)===pid)state.therapies=await DossierDB.byProfile('therapies',pid);
+  async function resolveFamilyMedicationEvent(eventId=''){
+    const groupDays=Math.max(0,Math.min(10,Number((state.globalPreferences||{}).medicationReorderGroupDays??7)));
+    const row=aggregateFamilyMedicationEvents(state.calendarFamilyEvents||[],groupDays).find(x=>x.familyMedicationGroup&&String(x.id)===String(eventId));
+    if(!row)return toast('Evento farmaci non trovato');
+    if(!calendarCanManageFamilyMedication(row))return toast('Non hai i permessi per gestire tutte le richieste di questo evento.');
+    if(!confirm(`Segnare come risolto l'intero evento del ${formatDate(row.startDate)}?\n\nTutte le richieste farmaci elencate saranno considerate gestite insieme. Gli eventi successivi non verranno toccati.`))return;
+
+    const now=new Date().toISOString(),affected=new Set();
+    for(const member of row.familyMedicationItems||[]){
+      const pid=String(member.profileId||'');if(!pid)continue;
+      const therapies=await DossierDB.byProfile('therapies',pid);
+      for(const item of member.items||[]){
+        const key=String(item.stockKey||''),date=String(item.reorderDate||member.startDate||row.startDate||'').slice(0,10);
+        if(!key||!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
+        const matched=(therapies||[]).filter(t=>medicationStockKey(t)===key);
+        for(const therapy of matched){
+          await DossierDB.put('therapies',{...therapy,reorderResolvedDate:date,reorderResolvedAt:now,updatedAt:now},{details:{event:'therapy-reorder-event-resolved-agenda',familyEventId:row.id,reorderDate:date}});
+        }
+      }
+      affected.add(pid);
+    }
+
+    for(const pid of affected){
+      const profile=calendarProfileMeta(pid)||state.profiles.find(p=>String(p.id)===pid)||{id:pid};
+      await syncMedicationReorderAgenda(profile);
+      if(String(state.activeProfileId)===pid)state.therapies=await DossierDB.byProfile('therapies',pid);
+    }
     await loadFamilyAgendaContext();
     await syncLocalCalendarAlerts({silent:true,force:true});
     await syncAuthorizedCalendarToGoogle({silent:true,force:true});
-    toast(`${medication||'Farmaco'}: richiesta segnata come risolta`);
-    if(state.activeView==='calendar')await renderCalendar({refreshProviders:false});
+    toast('Evento richiesta farmaci segnato come risolto');
+    if(state.activeView==='calendar')await renderCalendar({refreshProviders:false,refreshMedications:false});
   }
 
   async function refreshCalendarProviderState(){
@@ -2943,9 +2981,11 @@ const App = (() => {
       if(state.googleCalendarStatus.connected){try{const context=await loadFamilyAgendaContext();const ids=calendarVisiblePersistentEvents(context.events).map(x=>x.id);const statusResult=await DossierCalendar.googleAdvancedEventStatuses(ids);state.googleCalendarEventStatus=statusResult?.events||{};void syncAuthorizedCalendarToGoogle({silent:true});}catch{}}else state.googleCalendarEventStatus={};
     }finally{calendarProviderRefreshBusy=false;if(state.activeView==='calendar')void renderCalendar({refreshProviders:false});}
   }
-  async function renderCalendar({refreshProviders=true}={}){
-    ensureCalendarReminderLoop();void syncLocalCalendarAlerts({silent:true});
-    const familyContext=await loadFamilyAgendaContext();const visibleEvents=familyContext.events,visibleProfiles=familyContext.profiles;
+  async function renderCalendar({refreshProviders=true,refreshMedications=true}={}){
+    ensureCalendarReminderLoop();
+    if(refreshMedications)await refreshFamilyMedicationAgendaSources();
+    const familyContext=await loadFamilyAgendaContext();
+    void syncLocalCalendarAlerts({silent:true,force:refreshMedications});const visibleEvents=familyContext.events,visibleProfiles=familyContext.profiles;
     const localStatus=state.calendarLocalStatus||{ok:false,supported:false};
     const todayKey=calendarLocalToday();const groupDays=Math.max(0,Math.min(10,Number((state.globalPreferences||{}).medicationReorderGroupDays??7)));const displayEvents=aggregateFamilyMedicationEvents(visibleEvents,groupDays);const allUpcoming=[...displayEvents].filter(x=>(x.status||'planned')==='planned'&&(String(x.startDate||'')>=todayKey||calendarOpenOverdueMedication(x,todayKey))).sort((a,b)=>calendarEventDateTime(a).localeCompare(calendarEventDateTime(b)));const history=[...displayEvents].filter(x=>!calendarOpenOverdueMedication(x,todayKey)&&((x.status||'planned')!=='planned'||String(x.startDate||'')<todayKey)).sort((a,b)=>calendarEventDateTime(b).localeCompare(calendarEventDateTime(a))).slice(0,20),pending=(familyContext.suggestions||state.calendarFamilySuggestions||state.calendarSuggestions).filter(x=>x.status==='pending'&&calendarSuggestionDateAllowed(x.suggestedDate));
     if(!state.calendarMonth)state.calendarMonth=calendarMonthKey(allUpcoming[0]?.startDate||calendarLocalToday());
@@ -2974,7 +3014,7 @@ const App = (() => {
     $$('[data-calendar-day]').forEach(b=>b.addEventListener('click',()=>openCalendarEventModal({startDate:b.dataset.calendarDay})));
     $$('[data-calendar-edit]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openCalendarEventModal(calendarVisibleEventById(b.dataset.calendarEdit)||{});}));
     $$('[data-calendar-delete]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();deleteCalendarEvent(b.dataset.calendarDelete);}));$$('[data-calendar-complete]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();completeCalendarEvent(b.dataset.calendarComplete);}));$$('[data-calendar-export]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();const row=calendarVisibleEventById(b.dataset.calendarExport);if(row)openCalendarTargetModal(row);}));$$('[data-calendar-resolve-duplicate]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();openCalendarBookingDuplicateResolutionModal(b.dataset.calendarResolveDuplicate);}));
-    $$('[data-family-medication-resolve]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();void resolveFamilyMedicationRequest(b.dataset.profileId,b.dataset.stockKey,b.dataset.reorderDate,b.dataset.medication);}));
+    $('[data-family-medication-event-resolve]').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();void resolveFamilyMedicationEvent(b.dataset.familyMedicationEventResolve);}));
     $('#exportCalendarIcsBtn')?.addEventListener('click',()=>DossierCalendar.downloadIcs(allUpcoming,visibleProfiles.length>1?'Agenda familiare':[activeProfile()?.firstName,activeProfile()?.lastName].filter(Boolean).join(' ')));
     $('#syncGoogleAgendaBtn')?.addEventListener('click',syncWholeAgendaWithGoogle);$('#repairGoogleAgendaBtn')?.addEventListener('click',()=>{state.activeView='preferences';selectNav('preferences');renderPreferences();});
     bindViewActions($('#viewContainer'));
