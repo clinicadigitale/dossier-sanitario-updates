@@ -56,6 +56,15 @@ jobs:
           with zipfile.ZipFile(p) as z:
               pathlib.Path("windows-release/public-1.0.0-app.js").write_bytes(z.read("payload/js/app.js"))
           PY
+      - name: Upload verified public package for migration
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-public-windows-1.0.0
+          path: |
+            public.exe
+            windows-release/public-1.0.0-app.js
+          retention-days: 1
+          compression-level: 0
       - name: Save inspection report
         run: |
           git config user.name "github-actions[bot]"
