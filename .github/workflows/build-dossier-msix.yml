@@ -1,0 +1,114 @@
+name: Dossier MSIX reale (prova privata)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-dossier-msix.yml'
+      - 'dossier-msix/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scarica ed estrai il Dossier pubblico 1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force work,pkg | Out-Null
+          gh release download v1.0.1 -p "ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe" -D work
+          python -c "import zipfile; zipfile.ZipFile(r'work/ClinicaDigitale_DossierSanitario_1.0.1_WIN64.exe').extractall('pkg')"
+          Write-Host "Contenuto estratto (radice):"
+          Get-ChildItem pkg | Select-Object Name | Format-Table -AutoSize
+          Write-Host "Entry-point presente:" (Test-Path "pkg\payload\ClinicaDigitaleAppLauncher.exe")
+
+      - name: Genera i loghi MSIX dalle icone reali
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          New-Item -ItemType Directory -Force pkg\Assets | Out-Null
+          $src = [System.Drawing.Image]::FromFile((Resolve-Path "pkg\payload\assets\icon-512.png"))
+          function Logo($path,$w,$h){
+            $b = New-Object System.Drawing.Bitmap $w,$h
+            $g = [System.Drawing.Graphics]::FromImage($b)
+            $g.InterpolationMode = 'HighQualityBicubic'
+            $g.DrawImage($src,0,0,$w,$h)
+            $g.Dispose(); $b.Save($path,[System.Drawing.Imaging.ImageFormat]::Png); $b.Dispose()
+          }
+          Logo "pkg\Assets\Square44x44Logo.png" 44 44
+          Logo "pkg\Assets\Square150x150Logo.png" 150 150
+          Logo "pkg\Assets\StoreLogo.png" 50 50
+          Logo "pkg\Assets\Square310x310Logo.png" 310 310
+          Logo "pkg\Assets\Wide310x150Logo.png" 310 150
+          $src.Dispose()
+
+      - name: Copia il manifesto nel pacchetto
+        shell: pwsh
+        run: |
+          Copy-Item dossier-msix\AppxManifest.xml pkg\AppxManifest.xml -Force
+          Get-Content pkg\AppxManifest.xml | Select-Object -First 8
+
+      - name: Trova gli strumenti del Windows SDK
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
+            Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } |
+            Sort-Object Name -Descending | Select-Object -First 1
+          "SDKBIN=$($sdk.FullName)\x64" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Costruisci il pacchetto MSIX
+        shell: pwsh
+        run: |
+          & "$env:SDKBIN\makeappx.exe" pack /d pkg /p DossierSanitario.msix /nv /o
+
+      - name: Firma di prova (certificato auto-generato)
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=DossierTest" -KeyUsage DigitalSignature `
+            -FriendlyName "DossierTest" -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3","2.5.29.19={text}")
+          $pwd = ConvertTo-SecureString -String "Dossier!Test1" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password $pwd | Out-Null
+          Export-Certificate -Cert $cert -FilePath DossierSanitario.cer | Out-Null
+          & "$env:SDKBIN\signtool.exe" sign /fd SHA256 /a /f cert.pfx /p "Dossier!Test1" DossierSanitario.msix
+
+      - name: Pubblica il pacchetto firmato
+        uses: actions/upload-artifact@v4
+        with:
+          name: DossierSanitario-MSIX
+          path: |
+            DossierSanitario.msix
+            DossierSanitario.cer
+
+      - name: Smoke-test sul runner (avvio motore)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          Add-AppxPackage -Path DossierSanitario.msix
+          $pkg = Get-AppxPackage -Name "ClinicaDigitale.DossierSanitario"
+          Write-Host "PackageFamilyName:" $pkg.PackageFamilyName
+          Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!DossierSanitario"
+          Write-Host "Attendo l'avvio del motore (fino a 40s)..."
+          $ok = $false
+          for ($i=0; $i -lt 20; $i++) {
+            Start-Sleep -Seconds 2
+            try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8896/" -TimeoutSec 3; Write-Host "RISPOSTA motore 8896: HTTP" $r.StatusCode; $ok = $true; break }
+            catch { try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8895/" -TimeoutSec 3; Write-Host "RISPOSTA 8895: HTTP" $r.StatusCode; $ok=$true; break } catch {} }
+          }
+          Write-Host "======== ESITO MOTORE DENTRO MSIX ========"
+          if ($ok) { Write-Host "OK: il motore risponde dentro il pacchetto." } else { Write-Host "NON RISPONDE entro il tempo (vedi indizi sotto)." }
+          Write-Host "Processi dell'app / python attivi:"
+          Get-Process | Where-Object { $_.ProcessName -match "ClinicaDigitale|python|pythonw|msedge|chrome" } | Select-Object ProcessName,Id | Format-Table -AutoSize
+          $root = Join-Path $env:LOCALAPPDATA "Packages\$($pkg.PackageFamilyName)"
+          Write-Host "Contenuto cartella dati del pacchetto:"
+          if (Test-Path $root) { Get-ChildItem $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 80 FullName | Format-Table -AutoSize }
+          Write-Host "Eventuali log/errori:"
+          Get-ChildItem $root -Recurse -Include *.log,*error*,*crash*,*.txt -ErrorAction SilentlyContinue | Select-Object -First 10 | ForEach-Object { Write-Host "---" $_.FullName; Get-Content $_.FullName -Tail 30 -ErrorAction SilentlyContinue }
+          Write-Host "=========================================="
