@@ -1,0 +1,69 @@
+name: Prova MSIX Dossier
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'msix-test/**'
+      - '.github/workflows/build-msix-test.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Genera i loghi del pacchetto
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          New-Item -ItemType Directory -Force msix-test\Assets | Out-Null
+          function MakeLogo($path,$w,$h){
+            $bmp = New-Object System.Drawing.Bitmap $w,$h
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::FromArgb(255,20,110,120))
+            $g.Dispose(); $bmp.Save($path,[System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+          }
+          MakeLogo "msix-test\Assets\Square44x44Logo.png" 44 44
+          MakeLogo "msix-test\Assets\Square150x150Logo.png" 150 150
+          MakeLogo "msix-test\Assets\StoreLogo.png" 50 50
+          MakeLogo "msix-test\Assets\Square310x310Logo.png" 310 310
+          MakeLogo "msix-test\Assets\Wide310x150Logo.png" 310 150
+
+      - name: Compila il programma di prova (Go)
+        shell: pwsh
+        run: |
+          cd msix-test
+          if (-not (Test-Path go.mod)) { go mod init dossiertest }
+          go build -ldflags="-H=windowsgui" -o DossierTestLoopback.exe .
+
+      - name: Trova gli strumenti del Windows SDK
+        shell: pwsh
+        run: |
+          $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
+            Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } |
+            Sort-Object Name -Descending | Select-Object -First 1
+          "SDKBIN=$($sdk.FullName)\x64" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Costruisci il pacchetto MSIX
+        shell: pwsh
+        run: |
+          & "$env:SDKBIN\makeappx.exe" pack /d msix-test /p DossierTest.msix /nv /o
+
+      - name: Firma di prova (certificato auto-generato)
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=DossierTest" -KeyUsage DigitalSignature `
+            -FriendlyName "DossierTest" -CertStoreLocation "Cert:\CurrentUser\My" `
+            -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3","2.5.29.19={text}")
+          $pwd = ConvertTo-SecureString -String "Dossier!Test1" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password $pwd | Out-Null
+          Export-Certificate -Cert $cert -FilePath DossierTest.cer | Out-Null
+          & "$env:SDKBIN\signtool.exe" sign /fd SHA256 /a /f cert.pfx /p "Dossier!Test1" DossierTest.msix
+
+      - name: Pubblica i file prodotti
+        uses: actions/upload-artifact@v4
+        with:
+          name: DossierTest-MSIX
+          path: |
+            DossierTest.msix
+            DossierTest.cer
