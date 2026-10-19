@@ -77,8 +77,10 @@ jobs:
           $pkg = Get-AppxPackage -Name "DossierSanitario.ProvaMSIX"
           Write-Host "PackageFamilyName:" $pkg.PackageFamilyName
           Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!DossierTest"
-          Start-Sleep -Seconds 12
-          $res = Join-Path $env:LOCALAPPDATA "DossierMsixTest\risultato.txt"
+          Start-Sleep -Seconds 15
+          Write-Host "Processo attivo:"; Get-Process DossierTestLoopback -ErrorAction SilentlyContinue | Format-Table Name,Id -AutoSize
           Write-Host "======== ESITO PROVA (server locale dentro MSIX) ========"
-          if (Test-Path $res) { Get-Content $res } else { Write-Host "NESSUN FILE: l'app impacchettata non ha scritto il risultato." }
+          $found = Get-ChildItem $env:LOCALAPPDATA -Recurse -Filter risultato.txt -ErrorAction SilentlyContinue
+          if ($found) { foreach($f in $found){ Write-Host "TROVATO:" $f.FullName; Get-Content $f.FullName } }
+          else { Write-Host "NESSUN FILE trovato sotto LocalAppData (ne' reale ne' reindirizzato)." }
           Write-Host "========================================================="
