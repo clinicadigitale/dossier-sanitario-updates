@@ -6,7 +6,7 @@
   IgnorableNamespaces="uap rescap">
   <Identity Name="ClinicaDigitale.DossierSanitario" Publisher="CN=DossierTest" Version="1.0.1.0" ProcessorArchitecture="x64" />
   <Properties>
-    <DisplayName>Clinica Digitale - Dossier Sanitario</DisplayName>
+    <DisplayName>Dossier Sanitario - PROVA (Store)</DisplayName>
     <PublisherDisplayName>Clinica Digitale</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -22,10 +22,10 @@
     <Capability Name="privateNetworkClientServer" />
   </Capabilities>
   <Applications>
-    <Application Id="DossierSanitario" Executable="payload\ClinicaDigitaleAppLauncher.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="DossierSanitario" Executable="AvvioProva.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Clinica Digitale - Dossier Sanitario"
-        Description="Dossier Sanitario locale per la famiglia"
+        DisplayName="Dossier Sanitario - PROVA (Store)"
+        Description="Versione di PROVA del Dossier Sanitario (pacchetto Store) - non sostituisce la versione attuale"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
