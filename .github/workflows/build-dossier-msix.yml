@@ -53,6 +53,17 @@ jobs:
           Copy-Item dossier-msix\AppxManifest.xml pkg\AppxManifest.xml -Force
           Get-Content pkg\AppxManifest.xml | Select-Object -First 8
 
+      - name: Compila l'avviatore (domanda icona + lancio programma)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force buildshim | Out-Null
+          Copy-Item dossier-msix\AvvioProva.go buildshim\main.go -Force
+          Push-Location buildshim
+          go mod init avvioprova
+          go build -ldflags="-H=windowsgui" -o ..\pkg\AvvioProva.exe .
+          Pop-Location
+          Write-Host "Avviatore presente nel pacchetto:" (Test-Path "pkg\AvvioProva.exe")
+
       - name: Trova gli strumenti del Windows SDK
         shell: pwsh
         run: |
@@ -77,6 +88,40 @@ jobs:
           Export-Certificate -Cert $cert -FilePath DossierSanitario.cer | Out-Null
           & "$env:SDKBIN\signtool.exe" sign /fd SHA256 /a /f cert.pfx /p "Dossier!Test1" DossierSanitario.msix
 
+      - name: Crea l'installatore a doppio clic
+        shell: pwsh
+        run: |
+          $bat = @'
+@echo off
+chcp 65001 >nul
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+  echo Richiesta dei permessi di amministratore...
+  powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+cd /d "%~dp0"
+echo ============================================================
+echo   Installazione di: Dossier Sanitario - PROVA (Store)
+echo   (versione di prova, NON sostituisce la tua versione attuale)
+echo ============================================================
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Import-Certificate -FilePath '.\DossierSanitario.cer' -CertStoreLocation Cert:\LocalMachine\Root | Out-Null; Import-Certificate -FilePath '.\DossierSanitario.cer' -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null; Add-AppxPackage -Path '.\DossierSanitario.msix'"
+if %errorlevel% neq 0 (
+  echo.
+  echo ERRORE durante l'installazione. Riprova o avvisami.
+  pause
+  exit /b
+)
+echo.
+echo FATTO. Apri "Dossier Sanitario - PROVA (Store)" dal menu Start.
+echo Al primo avvio ti chiedera' se creare l'icona sul desktop.
+echo.
+pause
+'@
+          Set-Content -Path "Installa PROVA.bat" -Value $bat -Encoding Ascii
+          Write-Host "Installatore creato:" (Test-Path "Installa PROVA.bat")
+
       - name: Pubblica il pacchetto firmato
         uses: actions/upload-artifact@v4
         with:
@@ -84,6 +129,7 @@ jobs:
           path: |
             DossierSanitario.msix
             DossierSanitario.cer
+            Installa PROVA.bat
 
       - name: Smoke-test sul runner (avvio motore)
         shell: pwsh
