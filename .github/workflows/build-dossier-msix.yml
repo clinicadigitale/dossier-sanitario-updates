@@ -53,16 +53,26 @@ jobs:
           Copy-Item dossier-msix\AppxManifest.xml pkg\AppxManifest.xml -Force
           Get-Content pkg\AppxManifest.xml | Select-Object -First 8
 
-      - name: Compila l'avviatore (domanda icona + lancio programma)
+      - name: Genera l'icona del collegamento desktop (.ico)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force buildshim | Out-Null
-          Copy-Item dossier-msix\AvvioProva.go buildshim\main.go -Force
-          Push-Location buildshim
-          go mod init avvioprova
-          go build -ldflags="-H=windowsgui" -o ..\pkg\AvvioProva.exe .
-          Pop-Location
-          Write-Host "Avviatore presente nel pacchetto:" (Test-Path "pkg\AvvioProva.exe")
+          Add-Type -AssemblyName System.Drawing
+          $src = [System.Drawing.Image]::FromFile((Resolve-Path "pkg\payload\assets\icon-512.png"))
+          $bmp = New-Object System.Drawing.Bitmap 256,256
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.InterpolationMode = 'HighQualityBicubic'
+          $g.DrawImage($src,0,0,256,256); $g.Dispose()
+          $ms = New-Object System.IO.MemoryStream
+          $bmp.Save($ms,[System.Drawing.Imaging.ImageFormat]::Png)
+          $png = $ms.ToArray(); $bmp.Dispose(); $src.Dispose()
+          $fs = [System.IO.File]::Create((Join-Path (Get-Location).Path "DossierProva.ico"))
+          $bw = New-Object System.IO.BinaryWriter($fs)
+          $bw.Write([UInt16]0); $bw.Write([UInt16]1); $bw.Write([UInt16]1)
+          $bw.Write([Byte]0); $bw.Write([Byte]0); $bw.Write([Byte]0); $bw.Write([Byte]0)
+          $bw.Write([UInt16]1); $bw.Write([UInt16]32)
+          $bw.Write([UInt32]$png.Length); $bw.Write([UInt32]22)
+          $bw.Write($png); $bw.Close(); $fs.Close()
+          Write-Host "Icona .ico creata:" (Test-Path "DossierProva.ico")
 
       - name: Trova gli strumenti del Windows SDK
         shell: pwsh
@@ -88,11 +98,41 @@ jobs:
           Export-Certificate -Cert $cert -FilePath DossierSanitario.cer | Out-Null
           & "$env:SDKBIN\signtool.exe" sign /fd SHA256 /a /f cert.pfx /p "Dossier!Test1" DossierSanitario.msix
 
+      - name: Smoke-test VINCOLANTE (il motore deve rispondere dentro MSIX)
+        shell: pwsh
+        run: |
+          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          Add-AppxPackage -Path DossierSanitario.msix
+          $pkg = Get-AppxPackage -Name "ClinicaDigitale.DossierSanitario"
+          Write-Host "PackageFamilyName:" $pkg.PackageFamilyName
+          Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!DossierSanitario"
+          Write-Host "Attendo l'avvio del motore (fino a 60s)..."
+          $ok = $false
+          for ($i=0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 2
+            try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8895/" -TimeoutSec 3; Write-Host "RISPOSTA UI 8895: HTTP" $r.StatusCode; $ok = $true; break }
+            catch { try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8896/" -TimeoutSec 3; Write-Host "RISPOSTA API 8896: HTTP" $r.StatusCode; $ok=$true; break } catch {} }
+          }
+          Write-Host "Processi dell'app / python attivi:"
+          Get-Process | Where-Object { $_.ProcessName -match "ClinicaDigitale|python|pythonw|msedge|chrome" } | Select-Object ProcessName,Id | Format-Table -AutoSize
+          $root = Join-Path $env:LOCALAPPDATA "Packages\$($pkg.PackageFamilyName)"
+          if (Test-Path $root) { Write-Host "Dati del pacchetto:"; Get-ChildItem $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 60 FullName | Format-Table -AutoSize }
+          Get-ChildItem $root -Recurse -Include *.log,*error*,*crash*,*.txt -ErrorAction SilentlyContinue | Select-Object -First 10 | ForEach-Object { Write-Host "---" $_.FullName; Get-Content $_.FullName -Tail 30 -ErrorAction SilentlyContinue }
+          Write-Host "======== ESITO MOTORE DENTRO MSIX ========"
+          if ($ok) {
+            Write-Host "OK: il motore risponde dentro il pacchetto (avvio diretto)."
+          } else {
+            Write-Error "FALLITO: il motore NON risponde entro il tempo. Build bloccata: non verra' pubblicato un pacchetto non funzionante."
+            exit 1
+          }
+
       - name: Prepara l'installatore a doppio clic
         shell: pwsh
         run: |
           Copy-Item "dossier-msix\Installa_PROVA.bat" "Installa PROVA.bat" -Force
           Write-Host "Installatore presente:" (Test-Path "Installa PROVA.bat")
+          Write-Host "Icona presente:" (Test-Path "DossierProva.ico")
 
       - name: Pubblica il pacchetto firmato
         uses: actions/upload-artifact@v4
@@ -102,31 +142,4 @@ jobs:
             DossierSanitario.msix
             DossierSanitario.cer
             Installa PROVA.bat
-
-      - name: Smoke-test sul runner (avvio motore)
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
-          Import-Certificate -FilePath DossierSanitario.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
-          Add-AppxPackage -Path DossierSanitario.msix
-          $pkg = Get-AppxPackage -Name "ClinicaDigitale.DossierSanitario"
-          Write-Host "PackageFamilyName:" $pkg.PackageFamilyName
-          Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!DossierSanitario"
-          Write-Host "Attendo l'avvio del motore (fino a 40s)..."
-          $ok = $false
-          for ($i=0; $i -lt 20; $i++) {
-            Start-Sleep -Seconds 2
-            try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8896/" -TimeoutSec 3; Write-Host "RISPOSTA motore 8896: HTTP" $r.StatusCode; $ok = $true; break }
-            catch { try { $r = Invoke-WebRequest -UseBasicParsing -Uri "http://127.0.0.1:8895/" -TimeoutSec 3; Write-Host "RISPOSTA 8895: HTTP" $r.StatusCode; $ok=$true; break } catch {} }
-          }
-          Write-Host "======== ESITO MOTORE DENTRO MSIX ========"
-          if ($ok) { Write-Host "OK: il motore risponde dentro il pacchetto." } else { Write-Host "NON RISPONDE entro il tempo (vedi indizi sotto)." }
-          Write-Host "Processi dell'app / python attivi:"
-          Get-Process | Where-Object { $_.ProcessName -match "ClinicaDigitale|python|pythonw|msedge|chrome" } | Select-Object ProcessName,Id | Format-Table -AutoSize
-          $root = Join-Path $env:LOCALAPPDATA "Packages\$($pkg.PackageFamilyName)"
-          Write-Host "Contenuto cartella dati del pacchetto:"
-          if (Test-Path $root) { Get-ChildItem $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 80 FullName | Format-Table -AutoSize }
-          Write-Host "Eventuali log/errori:"
-          Get-ChildItem $root -Recurse -Include *.log,*error*,*crash*,*.txt -ErrorAction SilentlyContinue | Select-Object -First 10 | ForEach-Object { Write-Host "---" $_.FullName; Get-Content $_.FullName -Tail 30 -ErrorAction SilentlyContinue }
-          Write-Host "=========================================="
+            DossierProva.ico
