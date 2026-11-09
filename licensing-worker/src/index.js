@@ -995,6 +995,7 @@ function corsHeaders(request, env) {
   const allowed = new Set([
     String(env.PUBLIC_SITE_ORIGIN || "https://dossiersanitario.it"),
     "https://www.dossiersanitario.it",
+    "https://app.dossiersanitario.it",
     "http://127.0.0.1:8895",
     "http://localhost:8895",
   ]);
